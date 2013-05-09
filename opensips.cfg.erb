@@ -344,7 +344,7 @@ route["initial_requests"] {
     }
  
     # outbound routing translations
-    if(avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_add_header from translations where (from_username='$fU' or from_username='') and from_domain='$fd' and ('$rU' regexp match_regex or match_regex='') limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_add_header)"))
+    if(avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_add_header from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_add_header)"))
     {
   
       # if there is a full on user part replacement

@@ -142,7 +142,7 @@ route{
   if(search("sipvicious") || search('freindly-scanner')) { exit;}
 
   # kill any requests that we do not handle
-  if (!is_method("SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO")) {
+  if (!is_method("PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO")) {
     sl_send_reply("405","Method Not Allowed");
     exit;
   }

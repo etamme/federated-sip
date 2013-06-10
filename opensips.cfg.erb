@@ -12,8 +12,9 @@ log_stderror=no
 log_facility=<%= log_facility %>
 
 # network settings
-disable_tcp=yes
+disable_tcp=no
 listen=udp:<%= listen_ip %>:5060
+listen=tcp:<%= listen_ip %>:5060
 
 #set module path
 mpath="<%= module_path %>"
@@ -39,7 +40,8 @@ loadmodule "auth_db.so"
 loadmodule "nathelper.so"
 loadmodule "alias_db.so"
 loadmodule "group.so"
-loadmodule "rtpproxy.so"
+loadmodule "mediaproxy.so"
+loadmodule "path.so"
 loadmodule "enum.so"
 loadmodule "avpops.so"
 loadmodule "pike.so"
@@ -61,8 +63,6 @@ modparam("nathelper","natping_interval", 15)
 modparam("nathelper", "received_avp", "$avp(received)")
 modparam("nathelper", "ping_nated_only", 1)
 
-modparam("rtpproxy", "rtpproxy_sock", "udp:localhost:22222")
-
 modparam("dialog", "db_mode", 1)
 modparam("dialog", "db_url", "<%= dialog_db_url %>")
 
@@ -80,6 +80,12 @@ modparam("usrloc", "use_domain",1)
 # ---- group params ----
 modparam("group", "db_url", "<%= group_db_url %>")
 modparam("group", "use_domain", 1)
+
+# ----- mediaproxy params ----
+modparam("mediaproxy", "ice_candidate", "low-priority")
+
+# ----- path params ----
+modparam("path", "use_received", 1)
 
 # ----- uri params -----
 modparam("uri", "use_uri_table", 0)
@@ -195,27 +201,32 @@ route{
   }
  
   # at this point we know if the uac, and the uas are behind a nat so
-  # rtp proxy offer accordingly
+  # proxy media accordingly
   
-  # if the uac is behind a nat proxy rtp
+  # if the uac is behind a nat proxy media
   if (is_method("INVITE") && isflagset(5)) {
     if (has_body("application/sdp")) {
       xlog("L_NOTICE","$var(request_log) $cs: $rm: proxying rtp for uac behind nat\n");
-      rtpproxy_offer();
+      use_media_proxy();
     }
   }
-  # if we have detected that the target (uas) is behind a nat we must rtp proxy offer
-  # this leg, and rtp proxy answer when the uas behind nat responds
+  # if we have detected that the target (uas) is behind a nat we must proxy media for
+  # this leg, and for the uas behind nat when responds
   else if (isbflagset(1)) {
         if (has_body("application/sdp")) {
           xlog("L_NOTICE","$var(request_log) $cs: $rm: found uas behind nat proxying rtp for uac\n");
-          rtpproxy_offer();
+          use_media_proxy();
         }
   }
-  # if there was no sdp in the invite, they must send sdp in the ack.  rtp proxy offer if necessary
+  # if there was no sdp in the invite, they must send sdp in the ack.  proxy media if necessary
   else if (is_method("ACK") && has_body("application/sdp") && isflagset(5)) {
       xlog("L_NOTICE","$var(request_log) $cs: $rm: proxying uac rtp\n");
-      rtpproxy_offer();
+      use_media_proxy();
+  }
+  # if there are any ICE candidates present, proxy media by injecting a relay candidate
+  else if (search_body("a=candidate")) {
+     xlog("L_NOTICE","$var(request_log) $cs: $rs: detected ICE candidate in SDP\n");
+     use_media_proxy();
   }
  
   # set onreply_route[1] b/c transactional avp's are not present in onreply_route[0]
@@ -275,7 +286,7 @@ route["initial_requests"] {
       setbflag(1);
       setbflag(2);  
     }
-    if (!save("location")) {
+    if (!save("location","p0v")) {
       sl_reply_error();
     } 
     exit;
@@ -480,11 +491,16 @@ onreply_route[1] {
     $var(proxyrtp)=1;
     fix_nated_contact();
   }
+  if (search_body("a=candidate")) {
+    xlog("L_NOTICE","$var(request_log) $cs: $rs: detected ICE candidate in SDP\n");
+    $var(proxyrtp)=1;
+  }
+
 
   if ($var(proxyrtp)==1) {
     if (has_body("application/sdp")){
       xlog("L_NOTICE","$var(request_log) $cs: $rs: proxying rtp for uas\n");  
-            rtpproxy_answer();
+            use_media_proxy();
     }
   }
 }

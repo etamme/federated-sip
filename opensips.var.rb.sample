@@ -8,6 +8,8 @@ log_facility = 'LOG_LOCAL3'
 
 # CHANGE THIS
 listen_ip = '1.2.3.4'
+app_ip = '1.2.3.4'
+app_port = '5066'
 
 # CHANGE THIS to match your install prefix
 module_path = '/usr/local/opensips/lib64/opensips/modules/'

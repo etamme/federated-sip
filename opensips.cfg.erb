@@ -148,7 +148,7 @@ route{
   if(search("sipvicious") || search('freindly-scanner')) { exit;}
 
   # kill any requests that we do not handle
-  if (!is_method("PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO")) {
+  if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO")) {
     sl_send_reply("405","Method Not Allowed");
     exit;
   }
@@ -165,6 +165,7 @@ route{
     record_route();
   }
 
+  t_on_branch("1");
   # setup avp for detecting uac behind a nat in the response
   $avp(uacnat)=0;
   # UAC nat detection
@@ -246,7 +247,7 @@ route["initial_requests"] {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: received initial request to $ru\n");
   }
   # preloaded route checking
-  if (loose_route() && !is_method("ACK|CANCEL")) {
+  if (loose_route() && $si != "<%= app_ip %>" && !is_method("ACK|CANCEL")) {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: initial request with preloaded routes [$fu/$tu/$ru/$ci] - rejecting\n");
     sl_send_reply("403","Preload Route denied");
     exit;
@@ -308,6 +309,13 @@ route["initial_requests"] {
     create_dialog();
   }
   xlog("L_NOTICE","$var(request_log) $cs: $rm: fU=$fU fd=$fd rU=$rU\n");
+
+  $var(from_ws) = 0;
+  if(search("Via: SIP/2.0/WS")){
+    $var(from_ws) = 1;
+    xlog("L_NOTICE","$var(request_log) $cs: $rm: request is from WebRTC uac\n");
+  }
+
 
   # Initial INVITE processing
   # 
@@ -407,7 +415,7 @@ route["initial_requests"] {
       } else {
         xlog("L_NOTICE","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
       }
-    } else { 
+    } else if( $si != "<%= app_ip %>") { 
       # challenge requests to external domains
       if (!proxy_authorize("", "subscriber")) {
         xlog("L_NOTICE","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");
@@ -468,8 +476,38 @@ route["sequential_requests"] {
   return;
 }
 
-branch_route[0]{
-    xlog("L_NOTICE","branch_route: $cs: $rm: created new branch\n");
+branch_route[1]{
+  $var(branch_log)="branch_route              :";
+  xlog("L_NOTICE","$var(branch_log) $cs: $rm: created new branch\n");
+
+  # if we have already hair pinned a call through - just relay
+  if($si=="<%= app_ip %>") {
+  xlog("L_NOTICE","$var(branch_log) $cs: $rm: request from gateway relaying\n");
+    return;
+  }
+
+  $var(to_ws)=0;
+  if ($(ru{uri.transport}) == "ws") {
+    xlog("L_NOTICE","$var(branch_log) $cs: $rm: UAS is a websockets client\n");
+    $var(to_ws)=1;
+  }
+  
+  # detect websockets and legacy sip interop and send to gateway for DTLS handling
+  if( ( $var(to_ws)==1 && $var(from_ws)==0 ) || ( ($var(to_ws)==0 && $var(from_ws)==1) ) ){
+    xlog("L_NOTICE","$var(branch_log) $cs: $rm: legacy SIP and WebRTC - gatewaying\n");
+    if($path!=null){
+      append_hf("X-Path: <sip:<%= listen_ip %>:5060;transport=tcp;lr>,$path\r\n");
+    }
+    else {
+      # make a best effort attempt at gatewaying the call, and setting the path to the 
+      # current destination (post registration lookup) so we can send it to the UA
+      # after hairpinning throught the gateway.
+      # NOTE: this should not happen.  ALL UA should have a path header since they 
+      #       register through an oversip edge proxy now
+      append_hf("X-Path: <sip:<%= listen_ip %>:5060;transport=tcp;lr>,<$du;lr>\r\n");
+    }
+    $du="sip:<%= app_ip %>:<%= app_port %>;transport=tcp";
+  }
 }
 
 onreply_route[1] {

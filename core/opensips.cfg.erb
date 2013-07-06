@@ -323,6 +323,7 @@ route["initial_requests"] {
       setbflag(1);
       setbflag(2);  
     }
+    xlog("L_NOTICE","$var(request_log) $cs: $rm: saving registration for $tu\n");
     if (!save("location","p0v")) {
       sl_reply_error();
     } 
@@ -451,7 +452,7 @@ route["initial_requests"] {
       } else {
         xlog("L_NOTICE","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
       }
-    } else if( $si != "<%= app_proxy_ip %>" && $si != "<%= edge_ip %>" ) { 
+    } else if( $si != "<%= app_proxy_ip %>" && $si != "<%= edge_ip %>" && $si != "<%= listen_ip %>" ) { 
       # challenge requests to external domains
       if (!proxy_authorize("", "subscriber")) {
         xlog("L_NOTICE","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");

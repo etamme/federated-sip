@@ -58,6 +58,7 @@ modparam("mi_fifo", "fifo_name", "/tmp/opensips_fifo")
 modparam("rr", "append_fromtag", 0)
 
 modparam("registrar", "received_avp", "$avp(received)")
+modparam("registrar", "attr_avp", "$avp(attr)")
 
 modparam("nathelper","natping_interval", 15)
 modparam("nathelper", "received_avp", "$avp(received)")
@@ -148,7 +149,7 @@ route{
   if(search("sipvicious") || search('freindly-scanner')) { exit;}
 
   # kill any requests that we do not handle
-  if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO")) {
+  if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO|MESSAGE")) {
     sl_send_reply("405","Method Not Allowed");
     exit;
   }
@@ -259,7 +260,7 @@ route["initial_requests"] {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: received initial request to $ru\n");
   }
   # preloaded route checking
-  if (loose_route() && $si != "<%= app_proxy_ip %>" && !is_method("ACK|CANCEL")) {
+  if (loose_route() && $si != "<%= app_proxy_ip %>" && $si != "<%= listen_ip %>" && !is_method("ACK|CANCEL")) {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: initial request with preloaded routes [$fu/$tu/$ru/$ci] - rejecting\n");
     sl_send_reply("403","Preload Route denied");
     exit;
@@ -275,10 +276,13 @@ route["initial_requests"] {
   # handle registrations
   if (is_method("REGISTER")) {
 
+    if(search("Via: SIP/2.0/WS")){
+      $avp(attr)="websocket";
+    }
 
     # we want a Path header in EVERY registration
     # to do this we add Path header and forward to registrar (ourselves in the default case) 
-    if($si != "<%= listen_ip %>" ){ 
+    if($si != "<%= listen_ip %>" && $si != "<%= edge_ip %>"){ 
       # if the UAC is behind a NAT add received parameter to Path URI
       if($avp(uacnat)==1) { 
         if (!add_path_received()) {
@@ -287,7 +291,6 @@ route["initial_requests"] {
         }
       }
       else {
-        xlog("L_INFO","$var(request_log) $cs: $rm: adding path header\n"); 
         if (!add_path()) {
           sl_send_reply("503", "Internal Path Error"); 
             exit; 
@@ -298,19 +301,23 @@ route["initial_requests"] {
     }
 
 
-    # authenticate the REGISTER requests
-    if (!www_authorize("", "subscriber")) {
-      www_challenge("", "0");
-      exit;
+    # authenticate the REGISTER requests, do not challenge domains that are "unauthorized"
+    if(!avp_db_query("select unauthorized from domain where domain='$td'","$avp(unauthorized)")){
+      $avp(unauthorized)=0;
     }
-   
-    # make sure they are registering a legitimate AOR, not just using correct auth credentials 
-    if (!db_check_to()) {
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: attempt to register with bad To header\n");
-      sl_send_reply("403","Forbidden auth ID");
-      exit;
-    }
-      
+
+    if($avp(unauthorized)==0){
+      if (!www_authorize("", "subscriber")) {
+        www_challenge("", "0");
+        exit;
+      }
+      # make sure they are registering a legitimate AOR, not just using correct auth credentials 
+      if (!db_check_to()) {
+        xlog("L_NOTICE","$var(request_log) $cs: $rm: attempt to register with bad To header\n");
+        sl_send_reply("403","Forbidden auth ID");
+        exit;
+      }
+    }  
     # We have authorized a UAC, now if they are behind a NAT, we need to 
     # set the nat branch flag (1) before we save.  This will then be restored
     # on a call to lookup, allowing us to detect a NAT'd UAS or "callee" in
@@ -323,7 +330,8 @@ route["initial_requests"] {
       setbflag(1);
       setbflag(2);  
     }
-    xlog("L_NOTICE","$var(request_log) $cs: $rm: saving registration for $tu\n");
+    # comment out registration saving to reduce logs
+    # xlog("L_NOTICE","$var(request_log) $cs: $rm: saving registration for $tu\n");
     if (!save("location","p0v")) {
       sl_reply_error();
     } 
@@ -349,8 +357,13 @@ route["initial_requests"] {
 
   $var(from_ws) = 0;
   if(search("Via: SIP/2.0/WS")){
+    $avp(attr)="websocket";
     $var(from_ws) = 1;
     xlog("L_NOTICE","$var(request_log) $cs: $rm: request is from WebRTC uac\n");
+    if($rU =~ "^(\+?(1[2-9][0-9]{2}[2-9][0-9]{2}[0-9]{4})|(\+?[2-9][0-9]{6,14}))$"){
+      sl_send_reply("603","PSTN calls not allowed");
+      exit;
+    }
   }
 
 
@@ -380,7 +393,7 @@ route["initial_requests"] {
   #           is external, authenticate.  if the domain is local, we can proceed to doing a user 
   #           location lookup, and pass the call.
 
-  if (method=="INVITE") {
+  if (method=="INVITE" || method=="MESSAGE" ) {
     #  match e.164 numbers that may or may not be prefixed with +
     #  add the + prefix if it is missing, then do an ENUM lookup
     #
@@ -453,21 +466,24 @@ route["initial_requests"] {
         xlog("L_NOTICE","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
       }
     } else if( $si != "<%= app_proxy_ip %>" && $si != "<%= edge_ip %>" && $si != "<%= listen_ip %>" ) { 
+      
       # challenge requests to external domains
-      if (!proxy_authorize("", "subscriber")) {
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");
-        proxy_challenge("", "0");
-        exit;
-      } else {
-        # caller authorized
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: authorized request\n");
-        consume_credentials();
-      }
-      # check to see if the from header is one of our known users 
-      if (!db_check_from()) {
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: unknown user in From header - rejecting\n");
-        sl_send_reply("403","Forbidden auth ID");
-        exit;
+      if($avp(unauthorized)==0){
+        if (!proxy_authorize("", "subscriber")) {
+          xlog("L_NOTICE","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");
+          proxy_challenge("", "0");
+          exit;
+        } else {
+          # caller authorized
+          xlog("L_NOTICE","$var(request_log) $cs: $rm: authorized request\n");
+          consume_credentials();
+        }
+        # check to see if the from header is one of our known users 
+        if (!db_check_from()) {
+          xlog("L_NOTICE","$var(request_log) $cs: $rm: unknown user in From header - rejecting\n");
+          sl_send_reply("403","Forbidden auth ID");
+          exit;
+        }
       }
     }
   } 
@@ -524,8 +540,12 @@ branch_route[1]{
   }
 
   $var(to_ws)=0;
-  if ($(ru{uri.transport}{s.tolower}) == "ws") {
-    xlog("L_NOTICE","$var(branch_log) $cs: $rm: UAS is a websockets client\n");
+  if($avp(attr)=="websocket"){
+    xlog("L_NOTICE","$var(branch_log) $cs: $rm: UAS is a websockets client detected from registration lookup\n");
+    $var(to_ws)=1;
+  }
+  else if ($(ru{uri.transport}{s.tolower}) == "ws") {
+    xlog("L_NOTICE","$var(branch_log) $cs: $rm: UAS is a websockets client detected in uri transport\n");
     $var(to_ws)=1;
   }
   

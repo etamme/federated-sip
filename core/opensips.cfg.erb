@@ -12,9 +12,8 @@ log_stderror=no
 log_facility=<%= log_facility %>
 
 # network settings
-disable_tcp=no
+disable_tcp=yes
 listen=udp:<%= listen_ip %>:<%= listen_port %>
-listen=tcp:<%= listen_ip %>:<%= listen_port %>
 
 #set module path
 mpath="<%= module_path %>"
@@ -41,65 +40,63 @@ loadmodule "nathelper.so"
 loadmodule "alias_db.so"
 loadmodule "group.so"
 loadmodule "mediaproxy.so"
-loadmodule "path.so"
-loadmodule "enum.so"
 loadmodule "avpops.so"
 loadmodule "pike.so"
 loadmodule "domain.so"
+loadmodule "enum.so"
+loadmodule "stun.so"
 
-# enable transactional avp
+# ---- tm params ----
+# enable transactional avps
 modparam("tm", "onreply_avp_mode", 1)
 
-# our mi control fifo
+# ---- fifo params ----
 modparam("mi_fifo", "fifo_name", "/tmp/opensips_fifo")
 
+# ---- record route params ----
 # do not append from tag to the RR.  This is used to help determine
 # signaling direction (upstream/downstream) which we do not need
 modparam("rr", "append_fromtag", 0)
 
+# ---- registrar params ----
 modparam("registrar", "received_avp", "$avp(received)")
 modparam("registrar", "attr_avp", "$avp(attr)")
 
+# ---- nathelper params ----
 modparam("nathelper","natping_interval", 15)
 modparam("nathelper", "received_avp", "$avp(received)")
-modparam("nathelper", "ping_nated_only", 1)
 
+# ---- dialog params ----
 modparam("dialog", "db_mode", 1)
 modparam("dialog", "db_url", "<%= dialog_db_url %>")
 
-modparam("usrloc", "db_mode", 0)
+# ---- user location params ----
 modparam("usrloc", "db_mode", 2)
 modparam("usrloc", "db_url", "<%= usrloc_db_url %>")
 
-# when a UAC sends nated register set bflag 1 before saving.
-# when lookup is called, usrloc will restore the bflag and let us
+# when a UAC sends nated register set a branch flag before saving.
+# when lookup is called, usrloc will restore the branch flag and let us
 # detect a nated "callee" or UAS
-modparam("usrloc", "nat_bflag",1)
-# use the domain portion to match users
+modparam("usrloc", "nat_bflag","uasnat")
+# use the domain portion to match users - not just the user portion
 modparam("usrloc", "use_domain",1)
 
 # ---- group params ----
 modparam("group", "db_url", "<%= group_db_url %>")
 modparam("group", "use_domain", 1)
 
-# ----- mediaproxy params ----
-modparam("mediaproxy", "ice_candidate", "low-priority")
-
-# ----- path params ----
-modparam("path", "use_received", 1)
-
-# ----- uri params -----
-modparam("uri", "use_uri_table", 0)
-
+# ---- alias params ----
 modparam("alias_db", "db_url", "<%= alias_db_url %>")
 modparam("alias_db", "append_branches", 1)
 
+# ---- auth params ----
 modparam("auth_db", "calculate_ha1", 0)
 modparam("auth_db", "password_column", "ha1")
 modparam("auth_db", "db_url", "<%= auth_db_url %>")
 modparam("auth_db", "load_credentials", "")
 modparam("auth_db", "use_domain", 1)
 
+# ---- avpops params ----
 modparam("avpops", "db_url", "<%= avp_db_url %>")
 modparam("avpops","use_domain",1)
 
@@ -111,19 +108,16 @@ modparam("pike", "remove_latency", 3600)
 # ----- domain params ----
 modparam("domain", "db_url", "<%= domain_db_url %>")
 
-# flags
-# -----
-# 1 - 
-# 2 - 
-# 3 - 
-# 4 - 
-# 5 - UAC behind nat
-# 6 - 
+# we load the stun module primarily to keep logs free of parse errors on stun packets
+modparam("stun","primary_ip","<%= listen_ip %>")
+modparam("stun","primary_port","<%= listen_port %>")
+# it requires an alternate ip, just fake it if you dont have a secondary public ip
+modparam("stun","alternate_ip","127.0.0.1")
+modparam("stun","alternate_port","6050")
 
 # branch flags
 # ------------
-# 1 - UAS behind nat
-# 2 - NAT ping flag
+# uasnat - UAS behind nat
 
 # avps
 # ------------
@@ -134,7 +128,6 @@ modparam("domain", "db_url", "<%= domain_db_url %>")
 # route                        - general request processing
 # route["initial_requests"]    - initial request route processing          
 # route["sequential_requests"] - sequential request route processing          
-# route["pstn"]                - set headers for outbound pstn calling
 
 # main request routing logic
 route{
@@ -144,9 +137,9 @@ route{
   # some scanner mitigation
   
   # check to see if the src ip is flooding us and drop requests accordingly
-  if ($si!='<%= listen_ip %>' && !pike_check_req()) { exit; }
+  if (!pike_check_req()) { exit; }
   # if the packet contains sipviscious or freindly-scanner drop it
-  if(search("sipvicious") || search('freindly-scanner')) { exit;}
+  if(search("sipvicious") || search('freindly-scanner') || search('VaxSip')) { exit;}
 
   # kill any requests that we do not handle
   if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO|MESSAGE")) {
@@ -166,22 +159,39 @@ route{
     record_route();
   }
 
-  
-  # do not set branch route processing for requests from the app server
-  # we want them to just relay outbound with no processing at all
-  if( $si != "<%= app_proxy_ip %>" ){
-    t_on_branch("1");
-  }
-
   # setup avp for detecting uac behind a nat in the response
   $avp(uacnat)=0;
+
   # UAC nat detection
-  if (nat_uac_test("3")) {
+  # 
+  #  nat_uac_test(flags)
+  #
+  #  Tries to guess if client's request originated behind a nat. The parameter determines what heuristics is used.
+  #
+  #  Meaning of the flags is as follows:
+  #
+  #  1 - Contact header field is searched for occurrence of RFC1918 / RFC6598 addresses.
+  #
+  #  2 - the "received" test is used: address in Via is compared against source IP address of signaling
+  #
+  #  4 - Top Most VIA is searched for occurrence of RFC1918 / RFC6598 addresses
+  #
+  #  8 - SDP is searched for occurrence of RFC1918 / RFC6598 addresses
+  #
+  #  16 - test if the source port is different from the port in Via
+  #
+  #  32 - address in Contact is compared against source IP address of signaling
+  #
+  #  64 - Port in Contact is compared against source port of signaling 
+  #
+  #  All flags can be bitwise combined, the test returns true if any of the tests identified a NAT. 
+  #
+  #  We are using 1,2,32
+  if (nat_uac_test("35")) {
+    xlog("L_NOTICE","$var(request_log) $cs: $rm: received request from uac behind nat\n");
     # append recieved and port to first via so we can route responses back
     force_rport();
-    # set flag 5 so that we know elsewhere in this script, and in the transaction
-    # that the uac is behind a nat
-    setflag(5);
+    # set a transactional avp letting us know that the uac is behind a nat
     $avp(uacnat)=1;
     if (is_method("REGISTER")) {
       fix_nated_register();
@@ -204,45 +214,7 @@ route{
   else {
     route("sequential_requests");
   }
- 
-  # at this point we know if the uac, and the uas are behind a nat so
-  # proxy media accordingly
-  $var(use_media_proxy)=0; 
-  # if the uac is behind a nat proxy media
-  if (is_method("INVITE") && isflagset(5)) {
-    if (has_body("application/sdp")) {
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: proxying rtp for uac behind nat\n");
-      use_media_proxy();
-      $var(use_media_proxy)=1; 
-    }
-  }
-  # if we have detected that the target (uas) is behind a nat we must proxy media for
-  # this leg, and for the uas behind nat when responds
-  else if (isbflagset(1)) {
-        if (has_body("application/sdp")) {
-          xlog("L_NOTICE","$var(request_log) $cs: $rm: found uas behind nat proxying rtp for uac\n");
-          use_media_proxy();
-          $var(use_media_proxy)=1; 
-        }
-  }
-  # if there was no sdp in the invite, they must send sdp in the ack.  proxy media if necessary
-  else if (is_method("ACK") && has_body("application/sdp") && isflagset(5)) {
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: proxying uac rtp\n");
-      use_media_proxy();
-      $var(use_media_proxy)=1; 
-  }
-  # if there are any ICE candidates present, proxy media by injecting a relay candidate
-  else if (search_body("a=candidate")) {
-     xlog("L_NOTICE","$var(request_log) $cs: $rm: detected ICE candidate in SDP\n");
-     use_media_proxy();
-     $var(use_media_proxy)=1; 
-  }
-
-  if($var(use_media_proxy) == 1 ){
-    # prevent stream bundling as it can cause non-symmentric rtp issues with multiple streams
-    replace_body("a=group:BUNDLE audio\r\n","");
-  }
- 
+  
   # set onreply_route[1] b/c transactional avp's are not present in onreply_route[0]
   t_on_reply("1");
 
@@ -260,7 +232,7 @@ route["initial_requests"] {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: received initial request to $ru\n");
   }
   # preloaded route checking
-  if (loose_route() && $si != "<%= app_proxy_ip %>" && $si != "<%= listen_ip %>" && !is_method("ACK|CANCEL")) {
+  if (loose_route() && !is_method("ACK|CANCEL")) {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: initial request with preloaded routes [$fu/$tu/$ru/$ci] - rejecting\n");
     sl_send_reply("403","Preload Route denied");
     exit;
@@ -275,32 +247,6 @@ route["initial_requests"] {
   
   # handle registrations
   if (is_method("REGISTER")) {
-
-    if(search("Via: SIP/2.0/WS")){
-      $avp(attr)="websocket";
-    }
-
-    # we want a Path header in EVERY registration
-    # to do this we add Path header and forward to registrar (ourselves in the default case) 
-    if($si != "<%= listen_ip %>" && $si != "<%= edge_ip %>"){ 
-      # if the UAC is behind a NAT add received parameter to Path URI
-      if($avp(uacnat)==1) { 
-        if (!add_path_received()) {
-          sl_send_reply("503", "Internal Path Error"); 
-          exit; 
-        }
-      }
-      else {
-        if (!add_path()) {
-          sl_send_reply("503", "Internal Path Error"); 
-            exit; 
-        }
-      }
-        forward("<%= registrar_ip %>:<%= registrar_port %>"); # forward to registrar 
-        exit; 
-    }
-
-
     # authenticate the REGISTER requests, do not challenge domains that are "unauthorized"
     if(!avp_db_query("select unauthorized from domain where domain='$td'","$avp(unauthorized)")){
       $avp(unauthorized)=0;
@@ -319,16 +265,12 @@ route["initial_requests"] {
       }
     }  
     # We have authorized a UAC, now if they are behind a NAT, we need to 
-    # set the nat branch flag (1) before we save.  This will then be restored
+    # set the nat branch flag before we save.  This will then be restored
     # on a call to lookup, allowing us to detect a NAT'd UAS or "callee" in
     # a branch route, or onreply route.  In any "main route" the bflag will be 
     # for the first branch if there is more than one.
-    #
-    # We also set branch flag (2) to let the nat helper module know it should
-    # start sending nat ping's to that UAC
-    if (isflagset(5)) {
-      setbflag(1);
-      setbflag(2);  
+    if ($avp(uacnat)==1) {
+      setbflag(uasnat);
     }
     # comment out registration saving to reduce logs
     # xlog("L_NOTICE","$var(request_log) $cs: $rm: saving registration for $tu\n");
@@ -341,8 +283,7 @@ route["initial_requests"] {
   # CANCEL processing
   if (is_method("CANCEL") && t_check_trans()) {
     # if this is a CANCEL with an associated transaction
-    # just let the main route block t_relay now that we
-    # have done any nat fixup
+    # just let the main route block t_relay
     return;
   } else if (is_method("CANCEL") && !t_check_trans()) {
     # drop CANCEL requests that have no associated transaction
@@ -352,20 +293,12 @@ route["initial_requests"] {
   # create dialog
   if (is_method("INVITE")) {
     create_dialog();
+    # the vast majority of the time it is required that we proxy media, so use the engage_media_proxy 
+    # to automatically proxy media for the initial request/response, and all subsequent requests
+    engage_media_proxy();
+
   }
   xlog("L_NOTICE","$var(request_log) $cs: $rm: fU=$fU fd=$fd rU=$rU\n");
-
-  $var(from_ws) = 0;
-  if(search("Via: SIP/2.0/WS")){
-    $avp(attr)="websocket";
-    $var(from_ws) = 1;
-    xlog("L_NOTICE","$var(request_log) $cs: $rm: request is from WebRTC uac\n");
-    if($rU =~ "^(\+?(1[2-9][0-9]{2}[2-9][0-9]{2}[0-9]{4})|(\+?[2-9][0-9]{6,14}))$"){
-      sl_send_reply("603","PSTN calls not allowed");
-      exit;
-    }
-  }
-
 
   # Initial INVITE processing
   # 
@@ -411,9 +344,19 @@ route["initial_requests"] {
     if(alias_db_lookup("dbaliases","d")){
       xlog("L_NOTICE","$var(request_log) $cs: $rm: applied alias $ru\n");
     }
+
+    # if this is an e.164 number, do an ENUM lookup on it 
+    $var(is_enum)=0;
+    if($rU =~ "^(\+(1[2-9][0-9]{2}[2-9][0-9]{2}[0-9]{4})|(\+[2-9][0-9]{6,14}))$"){
+      xlog("L_NOTICE","$var(request_log) $cs: $rm: doing enum lookup on e164.arpa and e164.org\n");
+      if(enum_query() || enum_query("e164.org.")){
+        xlog("L_NOTICE","$var(request_log) $cs: $rm: ENUM query set RURI=$ru\n");
+        $var(is_enum)=1;
+      }
+    }
  
     # outbound routing translations
-    if(avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_add_header from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_add_header)"))
+    if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_add_header from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_add_header)"))
     {
   
       # if there is a full on user part replacement
@@ -444,15 +387,8 @@ route["initial_requests"] {
       xlog("L_NOTICE","$var(request_log) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_add_header=$avp(tran_add_header)\n"); 
       xlog("L_NOTICE","$var(request_log) $cs: $rm: post translation RURI=$ru\n");
     }
-      
-    # if this is an e.164 number, do an ENUM lookup on it 
-    if($rU =~ "^(\+(1[2-9][0-9]{2}[2-9][0-9]{2}[0-9]{4})|(\+[2-9][0-9]{6,14}))$"){
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: doing enum lookup on e164.arpa and e164.org\n");
-      if(enum_query() || enum_query("e164.org.")){
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: ENUM query set RURI=$ru\n");
-      }
-    }
- 
+   
+     
     #  ok we have done aliasing, translations, and ENUM lookup now check to see what the domain is 
     if (is_uri_host_local()) {
       # this is a local domain, do a user location lookup 
@@ -465,7 +401,7 @@ route["initial_requests"] {
       } else {
         xlog("L_NOTICE","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
       }
-    } else if( $si != "<%= app_proxy_ip %>" && $si != "<%= edge_ip %>" && $si != "<%= listen_ip %>" ) { 
+    } else { 
       
       # challenge requests to external domains
       if($avp(unauthorized)==0){
@@ -503,7 +439,7 @@ route["sequential_requests"] {
   # to indicate that for the remainder of the transaction
   if (subst_uri('/(sip:.*);nat=yes/\1/')) {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: uas is behind a nat (previously detected)\n");  
-    setbflag(1);
+    setbflag(uasnat);
   }
 
   # sequential requests should take the path built up from record-routing
@@ -529,87 +465,16 @@ route["sequential_requests"] {
   return;
 }
 
-branch_route[1]{
-  $var(branch_log)="branch_route              :";
-  xlog("L_NOTICE","$var(branch_log) $cs: $rm: created new branch\n");
-
-  # if we have already hair pinned a call through - just relay
-  if($si=="<%= app_proxy_ip %>") {
-  xlog("L_NOTICE","$var(branch_log) $cs: $rm: request from gateway relaying\n");
-    return;
-  }
-
-  $var(to_ws)=0;
-  if($avp(attr)=="websocket"){
-    xlog("L_NOTICE","$var(branch_log) $cs: $rm: UAS is a websockets client detected from registration lookup\n");
-    $var(to_ws)=1;
-  }
-  else if ($(ru{uri.transport}{s.tolower}) == "ws") {
-    xlog("L_NOTICE","$var(branch_log) $cs: $rm: UAS is a websockets client detected in uri transport\n");
-    $var(to_ws)=1;
-  }
-  
-  # detect websockets and legacy sip interop and send to gateway for DTLS handling
-  if($var(to_ws)==1 && $var(from_ws)==1){
-    xlog("L_INFO","$var(branch_log): $cs: $rm source WebSocket and destination WebSocket\n");
-    return;
-  }
-  else if( ( $var(to_ws)==1 && $var(from_ws)==0 ) || ( ($var(to_ws)==0 && $var(from_ws)==1) ) ){
-    xlog("L_NOTICE","$var(branch_log) $cs: $rm: legacy SIP and WebRTC - gatewaying\n");
-    if($path!=null){
-      append_hf("X-Path: $path\r\n");
-    }
-    else {
-      # make a best effort attempt at gatewaying the call, and setting the path to the 
-      # current destination (post registration lookup) so we can send it to the UA
-      # after hairpinning throught the gateway.
-      # NOTE: this should not happen.  ALL UA should have a path header since they 
-      #       register through an oversip edge proxy now
-      append_hf("X-Path: <sip:<%= listen_ip %>:<%= listen_port%>;transport=tcp;lr>,<$du;lr>\r\n");
-    }
-    $du="sip:<%= app_proxy_ip %>:<%= app_proxy_port %>;transport=tcp";
-  }
-}
-
 onreply_route[1] {
   $var(request_log)="onreply_route             :";
-  # if this is a spiraled response do not mess with it
-  if( $si == "<%= listen_ip %>" ){
-    xlog("L_NOTICE","$var(request_log) $cs: $rs: spiraled response\n");
-    return;
-  }
-  
   xlog("L_NOTICE","$var(request_log) $cs: $rs: response\n");
 
-  $var(proxyrtp)=0;
-
-  if ($avp(uacnat)==1) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rs: uac behind nat (previously detected)\n");
-    $var(proxyrtp)=1;
-  }
-  if (isbflagset(1)) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rs: uas behind nat (previously detected)\n");
-    $var(proxyrtp)=1;
+  if (isbflagset(uasnat)) {
+    xlog("L_NOTICE","$var(request_log) $cs: $rs: uas behind nat (previously detected), fixing contact\n");
     fix_nated_contact();
   }
-  if (nat_uac_test("1")) {
+  else if (nat_uac_test("1")) {
     xlog("L_NOTICE","$var(request_log) $cs: $rs: uas behind nat, fixing contact\n");
-    $var(proxyrtp)=1;
     fix_nated_contact();
-  }
-  if (search_body("a=candidate")) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rs: detected ICE candidate in SDP\n");
-    $var(proxyrtp)=1;
-  }
-
-
-  if ($var(proxyrtp)==1) {
-    if (has_body("application/sdp")){
-      xlog("L_NOTICE","$var(request_log) $cs: $rs: proxying rtp for uas\n");  
-      use_media_proxy();
-      # prevent stream bundling as it can cause non-symmentric rtp issues with multiple streams
-      # if clients do not chose the same stream to bundle on
-      replace_body("a=group:BUNDLE audio\r\n","");
-    }
   }
 }

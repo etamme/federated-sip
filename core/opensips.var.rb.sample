@@ -11,6 +11,8 @@ module_path = '/usr/local/opensips/lib64/opensips/modules/'
 user = 'opensips'
 group = 'opensips'
 
+use_enum = '1'
+
 # We set db_url then reference it for all other db_urls
 # since they share a common db.  You can set them individually.
 group_db_url=db_url

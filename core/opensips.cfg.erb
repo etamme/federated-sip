@@ -38,8 +38,7 @@ loadmodule "auth.so"
 loadmodule "auth_db.so"
 loadmodule "nathelper.so"
 loadmodule "alias_db.so"
-loadmodule "group.so"
-loadmodule "mediaproxy.so"
+loadmodule "rtpengine.so"
 loadmodule "avpops.so"
 loadmodule "pike.so"
 loadmodule "domain.so"
@@ -81,10 +80,6 @@ modparam("usrloc", "nat_bflag","uasnat")
 # use the domain portion to match users - not just the user portion
 modparam("usrloc", "use_domain",1)
 
-# ---- group params ----
-modparam("group", "db_url", "<%= group_db_url %>")
-modparam("group", "use_domain", 1)
-
 # ---- alias params ----
 modparam("alias_db", "db_url", "<%= alias_db_url %>")
 modparam("alias_db", "append_branches", 1)
@@ -114,6 +109,9 @@ modparam("stun","primary_port","<%= listen_port %>")
 # it requires an alternate ip, just fake it if you dont have a secondary public ip
 modparam("stun","alternate_ip","127.0.0.1")
 modparam("stun","alternate_port","6050")
+
+# ----- rtpengine params ----
+modparam("rtpengine", "rtpengine_sock", "udp:<%= listen_ip %>:60000")
 
 # branch flags
 # ------------
@@ -146,6 +144,12 @@ route{
 
   # kill any requests that we do not handle
   if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO|MESSAGE")) {
+    sl_send_reply("405","Method Not Allowed");
+    exit;
+  }
+
+  # we do not handle any subscriptions locally
+  if (is_method("SUBSCRIBE") && uri == myself) {
     sl_send_reply("405","Method Not Allowed");
     exit;
   }
@@ -190,7 +194,10 @@ route{
   #  All flags can be bitwise combined, the test returns true if any of the tests identified a NAT. 
   #
   #  We are using 1,2,32
-  if (nat_uac_test("35")) {
+ 
+  #  We are also checking to see if a Record-Route header is present.  We only want to do contact rewriting for
+  #  user agents that are "local" to us, aka immediately adjacent not using other proxy servers.
+  if ( !is_present_hf("Record-Route") && nat_uac_test("35")) {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: received request from uac behind nat\n");
     # append recieved and port to first via so we can route responses back
     force_rport();
@@ -206,6 +213,9 @@ route{
     }
   }
 
+  # handle rtp proxying for both initial and sequential requests
+  rtpengine_manage();
+  
   # we will hand off to either initial or sequential request processing blocks
   # that will return and continue executing the code after this if/else
 
@@ -251,8 +261,9 @@ route["initial_requests"] {
   # handle registrations
   if (is_method("REGISTER")) {
     # authenticate the REGISTER requests, do not challenge domains that are "unauthorized"
-    if(!avp_db_query("select unauthorized from domain where domain='$td'","$avp(unauthorized)")){
-      $avp(unauthorized)=0;
+    if (is_from_local("$var(attrs)")) {
+       if($var(attrs)=="noauth")
+         $avp(unauthorized)=0;
     }
 
     if($avp(unauthorized)==0){
@@ -296,10 +307,6 @@ route["initial_requests"] {
   # create dialog
   if (is_method("INVITE")) {
     create_dialog();
-    # the vast majority of the time it is required that we proxy media, so use the engage_media_proxy 
-    # to automatically proxy media for the initial request/response, and all subsequent requests
-    engage_media_proxy();
-
   }
   xlog("L_NOTICE","$var(request_log) $cs: $rm: fU=$fU fd=$fd rU=$rU\n");
 
@@ -329,7 +336,7 @@ route["initial_requests"] {
   #           is external, authenticate.  if the domain is local, we can proceed to doing a user 
   #           location lookup, and pass the call.
 
-  if (method=="INVITE" || method=="MESSAGE" ) {
+  if (method=="INVITE" || method=="MESSAGE" || method=="NOTIFY") {
     #  match e.164 numbers that may or may not be prefixed with +
     #  add the + prefix if it is missing, then do an ENUM lookup
     #
@@ -458,7 +465,7 @@ route["sequential_requests"] {
         # ACK to a negative response (wont loose route) - just let the main route t_relay
         xlog("L_NOTICE","$var(request_log) $cs: $rm: received ACK to negative response - relaying\n");
       }
-    }else {
+    }else if ( uri != myself ) {
     # some other sequential request that is bogus
       xlog("L_NOTICE","$var(request_log) $cs: $rm: received bogus sequential request - sending 404\n");
       sl_send_reply("404","Not here");
@@ -471,6 +478,8 @@ route["sequential_requests"] {
 onreply_route[1] {
   $var(request_log)="onreply_route             :";
   xlog("L_NOTICE","$var(request_log) $cs: $rs: response\n");
+  # handle rtp proxying for responses
+  rtpengine_manage();
 
   if (isbflagset(uasnat)) {
     xlog("L_NOTICE","$var(request_log) $cs: $rs: uas behind nat (previously detected), fixing contact\n");

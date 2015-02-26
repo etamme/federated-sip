@@ -1,0 +1,2 @@
+# Add extra options here
+OPTIONS="--interface xxx.xxx.xxx.xxx --listen-ng xxx.xxx.xxx.xxx:60000 -m 50000 -M 55000 -E -L 7"

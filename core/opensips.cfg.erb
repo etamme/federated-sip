@@ -214,7 +214,15 @@ route{
   }
 
   # handle rtp proxying for both initial and sequential requests
-  rtpengine_manage();
+  if ( (is_method("INVITE") || is_method("ACK")) && has_body("application/sdp") ) {
+    if( is_method("ACK") ){
+      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine answer\n");
+      rtpengine_answer("replace-session-connection ICE=remove");
+    } else {
+      rtpengine_offer("replace-session-connection ICE=remove");
+      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine offer\n");
+    }
+  }
   
   # we will hand off to either initial or sequential request processing blocks
   # that will return and continue executing the code after this if/else
@@ -229,7 +237,7 @@ route{
   }
   
   # set onreply_route[1] b/c transactional avp's are not present in onreply_route[0]
-  t_on_reply("1");
+  t_on_reply("reply");
 
   # all processing has been completed, t_relay to the next hop
   if (!t_relay()) {
@@ -475,11 +483,21 @@ route["sequential_requests"] {
   return;
 }
 
-onreply_route[1] {
+onreply_route["reply"] {
   $var(request_log)="onreply_route             :";
   xlog("L_NOTICE","$var(request_log) $cs: $rs: response\n");
+
   # handle rtp proxying for responses
-  rtpengine_manage();
+  if ( has_body("application/sdp") ) {
+    if ( $rs=="183" ) {
+      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine offer\n");
+      rtpengine_offer("replace-session-connection ICE=remove");
+    } else if ( $rs=="200" ) {
+      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine answer\n");
+      rtpengine_answer("replace-session-connection ICE=remove");
+    }
+  }
+
 
   if (isbflagset(uasnat)) {
     xlog("L_NOTICE","$var(request_log) $cs: $rs: uas behind nat (previously detected), fixing contact\n");

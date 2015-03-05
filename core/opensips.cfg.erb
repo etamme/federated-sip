@@ -15,6 +15,10 @@ log_facility=<%= log_facility %>
 listen=udp:<%= listen_ip %>:<%= listen_port %>
 listen=tcp:<%= listen_ip %>:<%= listen_port %>
 
+tcp_keepalive = 1
+tcp_keepcount = 5
+tcp_keepidle = 15
+tcp_keepinterval = 10
 
 #set module path
 mpath="<%= module_path %>"
@@ -47,6 +51,9 @@ loadmodule "pike.so"
 loadmodule "domain.so"
 loadmodule "enum.so"
 loadmodule "stun.so"
+
+# ---- tcp params ----
+modparam("proto_tcp","tcp_async",1)
 
 # ---- tm params ----
 # enable transactional avps
@@ -496,7 +503,7 @@ onreply_route["reply"] {
       xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine offer\n");
       rtpengine_offer("replace-session-connection ICE=remove");
     } else if ( $rs=="200" ) {
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine answer\n");
+      xlog("L_NOTICE","$var(request_log) $cs: $rs: rtpengine answer\n");
       rtpengine_answer("replace-session-connection ICE=remove");
     }
   }

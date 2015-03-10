@@ -281,7 +281,7 @@ route["initial_requests"] {
     # authenticate the REGISTER requests, do not challenge domains that are "unauthorized"
     if (is_from_local("$var(attrs)")) {
        if($var(attrs)=="noauth")
-         $avp(unauthorized)=0;
+         $avp(unauthorized)=1;
     }
 
     if($avp(unauthorized)==0){

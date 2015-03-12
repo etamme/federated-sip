@@ -152,7 +152,7 @@ route{
   # check to see if the src ip is flooding us and drop requests accordingly
   if (!pike_check_req()) { exit; }
   # if the packet contains sipviscious or freindly-scanner drop it
-  if(search("sipvicious") || search('freindly-scanner') || search('VaxSip')) { exit;}
+  if($ua=="sipvicious") || $ua=="freindly-scanner" || $ua=="VaxSip") { exit;}
 
   # kill any requests that we do not handle
   if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO|MESSAGE")) {
@@ -461,8 +461,8 @@ route["initial_requests"] {
 
 # process sequential requests
 route["sequential_requests"] {
-  $var(request_log)="route[sequential_requests]:";
-  xlog("L_INFO","$var(request_log) $cs: $rm: received sequential request\n");
+  $var(sequential_log)="route[sequential_requests]:";
+  xlog("L_INFO","$var(sequential_log) $cs: $rm: received sequential request\n");
 
   # UAS NAT detection
   # we append ;nat=yes to the contact when we detect NAT on a UAC.  if this
@@ -470,13 +470,13 @@ route["sequential_requests"] {
   # that the UAS of this request is behind a NAT, and we should set bflag 1 
   # to indicate that for the remainder of the transaction
   if (subst_uri('/(sip:.*);nat=yes/\1/')) {
-    xlog("L_INFO","$var(request_log) $cs: $rm: uas is behind a nat (previously detected)\n");  
+    xlog("L_INFO","$var(sequential_log) $cs: $rm: uas is behind a nat (previously detected)\n");  
     setbflag(uasnat);
   }
 
   # sequential requests should take the path built up from record-routing
   if (loose_route()) {
-    xlog("L_INFO","$var(request_log) $cs: $rm: loose routing\n");
+    xlog("L_INFO","$var(sequential_log) $cs: $rm: loose routing\n");
   } else {
     if ( is_method("ACK") ) {
       if (! t_check_trans() ) {
@@ -485,11 +485,11 @@ route["sequential_requests"] {
         exit;
       } else {
         # ACK to a negative response (wont loose route) - just let the main route t_relay
-        xlog("L_INFO","$var(request_log) $cs: $rm: received ACK to negative response - relaying\n");
+        xlog("L_INFO","$var(sequential_log) $cs: $rm: received ACK to negative response - relaying\n");
       }
     }else if ( uri != myself ) {
     # some other sequential request that is bogus
-      xlog("L_INFO","$var(request_log) $cs: $rm: received bogus sequential request - sending 404\n");
+      xlog("L_INFO","$var(sequential_log) $cs: $rm: received bogus sequential request - sending 404\n");
       sl_send_reply("404","Not here");
       exit;
     }
@@ -538,47 +538,47 @@ branch_route[rtpengine] {
 }
 
 onreply_route["reply"] {
-  $var(request_log)="onreply_route             :";
-  xlog("L_INFO","$var(request_log) $cs: $rs: response\n");
-  xlog("L_INFO","$var(request_log) $cs: $rs: message flags: $mf\n");
-  xlog("L_INFO","$var(request_log) $cs: $rs: branch flags: $bf\n");
+  $var(reply_log)="onreply_route             :";
+  xlog("L_INFO","$var(reply_log) $cs: $rs: response\n");
+  xlog("L_INFO","$var(reply_log) $cs: $rs: message flags: $mf\n");
+  xlog("L_INFO","$var(reply_log) $cs: $rs: branch flags: $bf\n");
 
   # rtp proxying for responses
   if ( has_body("application/sdp") ) {
     # set rtpengine flags based on whether uac or uas are websockets
     if (isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
-      xlog("L_INFO","$var(request_log) $cs: $rs: uac and uas are both websockets\n");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: uac and uas are both websockets\n");
     }
     else if (isflagset(uac_ws) && !isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "UDP/TLS/RTP/SAVPF ICE=force";
-      xlog("L_INFO","$var(request_log) $cs: $rs: uac is ws uas is not\n");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: uac is ws uas is not\n");
     }
     else if (!isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
-      xlog("L_INFO","$var(request_log) $cs: $rs: uas is ws uac is not\n");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: uas is ws uac is not\n");
     }
     else if (!isflagset(uac_ws) && !isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
-      xlog("L_INFO","$var(request_log) $cs: $rs: neither uac or uas are websocket\n");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: neither uac or uas are websocket\n");
     }
 
     if ( $rs=="183" ) {
-      xlog("L_INFO","$var(request_log) $cs: $rs: rtpengine offer $var(rtpengine_flags)\n");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: rtpengine offer $var(rtpengine_flags)\n");
       rtpengine_offer("$var(rtpengine_flags)");
     } else if ( $rs=="200" ) {
-      xlog("L_INFO","$var(request_log) $cs: $rs: rtpengine answer $var(rtpengine_flags)\n");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: rtpengine answer $var(rtpengine_flags)\n");
       rtpengine_answer("$var(rtpengine_flags)");
     }
   }
 
   # fix contact for uas behind nat
   if (isbflagset(uasnat)) {
-    xlog("L_INFO","$var(request_log) $cs: $rs: uas behind nat (previously detected), fixing contact\n");
+    xlog("L_INFO","$var(reply_log) $cs: $rs: uas behind nat (previously detected), fixing contact\n");
     fix_nated_contact();
   }
   else if (nat_uac_test("1")) {
-    xlog("L_INFO","$var(request_log) $cs: $rs: uas behind nat, fixing contact\n");
+    xlog("L_INFO","$var(reply_log) $cs: $rs: uas behind nat, fixing contact\n");
     fix_nated_contact();
   }
 }

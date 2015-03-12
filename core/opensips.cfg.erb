@@ -237,7 +237,7 @@ route{
     route("sequential_requests");
   }
   
-  # set onreply_route[1] b/c transactional avp's are not present in onreply_route[0]
+  # set our reply route
   t_on_reply("reply");
 
   # all processing has been completed, t_relay to the next hop
@@ -508,7 +508,7 @@ branch_route[rtpengine] {
   xlog("L_INFO","$var(branch_log) $cs: $rm: branch flags: $bf\n");
 
   # handle rtp proxying for both initial and sequential requests
-  if ( (is_method("INVITE") || is_method("ACK")) && has_body("application/sdp") ) {
+  if ( (is_method("INVITE") || is_method("ACK") || is_method("PRACK")) && has_body("application/sdp") ) {
     # set rtpengine flags based on whether uac or uas are websockets
     if (isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
@@ -527,7 +527,7 @@ branch_route[rtpengine] {
       xlog("L_INFO","$var(branch_log) $cs: $rm: neither uac or uas are websocket\n");
     }
 
-    if( is_method("ACK") ){
+    if( is_method("ACK") || is_method("PRACK") ){
       xlog("L_INFO","$var(branch_log) $cs: $rm: rtpengine answer $var(rtpengine_flags)\n");
       rtpengine_answer("$var(rtpengine_flags)");
     } else {

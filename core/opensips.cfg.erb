@@ -128,16 +128,20 @@ modparam("rtpengine", "rtpengine_sock", "udp:<%= listen_ip %>:60000")
 # branch flags
 # ------------
 # uasnat - UAS behind nat
+# uas_ws - UAS is a websockets client
 
 # avps
 # ------------
 # uacnat - transactional avp for detecting UAC behind nat on response
+# attr   - set on before userlocation save, and restored on lookup
 
 # routes
 # ------
 # route                        - general request processing
-# route["initial_requests"]    - initial request route processing          
-# route["sequential_requests"] - sequential request route processing          
+# route["initial_requests"]    - initial request route processing
+# route["sequential_requests"] - sequential request route processing
+# branch_route["rtpengine"]    - processing for rtpengine flags per branch
+# onreply_route["reply"]       - reply processing for nat and rtpengine flags
 
 # main request routing logic
 route{

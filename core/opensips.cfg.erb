@@ -154,9 +154,9 @@ route{
   # some scanner mitigation
   
   # check to see if the src ip is flooding us and drop requests accordingly
-  if (!pike_check_req()) { exit; }
+  if ( !pike_check_req() ) { exit; }
   # if the packet contains sipviscious or freindly-scanner drop it
-  if($ua=="sipvicious") || $ua=="freindly-scanner" || $ua=="VaxSip") { exit;}
+  if( $ua=="sipvicious" || $ua=="freindly-scanner" || $ua=="VaxSip" ) { exit; }
 
   # kill any requests that we do not handle
   if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO|MESSAGE")) {
@@ -275,7 +275,7 @@ route["initial_requests"] {
   t_on_branch("rtpengine");
 
   # Detect if UAC is websockets client and set flag for later processing
-  if ($(hdr(Via){via.transport}{s.tolower}) == "ws" || $(hdr(Via){via.transport}{s.tolower}) == "wss") {
+  if ( proto == WS ) {
     setflag(uac_ws);
   }
 
@@ -309,7 +309,7 @@ route["initial_requests"] {
     }
     # If the client is using websocket (webrtc) and save the attribute for detection later on location lookup
     if ( isflagset(uac_ws) ) {
-      $avp(attr)="websocket";
+      setbflag(uas_ws);
     }
 
     # comment out registration saving to reduce logs
@@ -503,10 +503,6 @@ route["sequential_requests"] {
 
 branch_route[rtpengine] {
   $var(branch_log)="branch[" + $T_branch_idx + "]                 :";
-  # set a branch flag based on the attribute avp
-  if( $(avp(attr)[$T_branch_idx]) == "websocket" ) {
-    setbflag(uas_ws);
-  }
 
   xlog("L_INFO","$var(branch_log) $cs: $rm: message flags: $mf\n");
   xlog("L_INFO","$var(branch_log) $cs: $rm: branch flags: $bf\n");

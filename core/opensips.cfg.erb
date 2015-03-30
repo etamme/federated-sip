@@ -165,7 +165,7 @@ route{
   # some scanner mitigation
   
   # check to see if the src ip is flooding us and drop requests accordingly
-  if ( !pike_check_req() ) { exit; }
+  if ( src_ip != myself && !pike_check_req() ) { exit; }
   # if the packet contains sipviscious or freindly-scanner drop it
   if( $ua=="sipvicious" || $ua=="freindly-scanner" || $ua=="VaxSip" ) { exit; }
 

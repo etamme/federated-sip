@@ -14,6 +14,7 @@ log_facility=<%= log_facility %>
 # network settings
 listen=udp:<%= listen_ip %>:<%= listen_port %>
 listen=tcp:<%= listen_ip %>:<%= listen_port %>
+listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
 
 tcp_keepalive = 1
@@ -29,6 +30,7 @@ group=<%= group %>
 
 loadmodule "proto_tcp.so"
 loadmodule "proto_udp.so"
+loadmodule "proto_tls.so"
 loadmodule "proto_ws.so"
 loadmodule "signaling.so"
 loadmodule "sl.so"
@@ -124,6 +126,15 @@ modparam("stun","alternate_port","6050")
 
 # ----- rtpengine params ----
 modparam("rtpengine", "rtpengine_sock", "udp:<%= listen_ip %>:60000")
+
+# ----- tls params ----
+modparam("proto_tls", "require_cert", "0")
+modparam("proto_tls", "verify_cert", "0")
+modparam("proto_tls", "tls_method", "SSLv23")
+# we are only doing server side tls - aka we will not make outbound tls connections
+modparam("proto_tls", "certificate", "/usr/local/etc/opensips/tls/server/server-cert.pem")           
+modparam("proto_tls", "private_key", "/usr/local/etc/opensips/tls/server/server-privkey.pem")    
+modparam("proto_tls", "ca_list", "/usr/local/etc/opensips/tls/server/server-calist.pem")                
 
 # branch flags
 # ------------
@@ -238,6 +249,9 @@ route{
   }
   # sequential request processing
   else {
+    if (is_method("CANCEL|BYE")) {
+      rtpengine_delete();
+    }
     route("sequential_requests");
   }
   
@@ -392,7 +406,7 @@ route["initial_requests"] {
     }
  
     # outbound routing translations
-    if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_add_header from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_add_header)"))
+    if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_port);$avp(tran_add_header)"))
     {
   
       # if there is a full on user part replacement
@@ -416,11 +430,16 @@ route["initial_requests"] {
         $rd=$avp(tran_domain);
       }
 
+      # translation port is all or nothing, no partial substitution
+      if($avp(tran_port)!=null) {
+        $rp=$avp(tran_port);
+      }
+
       if($avp(tran_add_header)!=null) {
         append_hf("$avp(tran_add_header)");
       }
 
-      xlog("L_INFO","$var(request_log) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_add_header=$avp(tran_add_header)\n"); 
+      xlog("L_INFO","$var(request_log) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_port=$avp(tran_port) tran_add_header=$avp(tran_add_header)\n"); 
       xlog("L_INFO","$var(request_log) $cs: $rm: post translation RURI=$ru\n");
     }
    

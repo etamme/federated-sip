@@ -3,6 +3,7 @@
 --
 DROP TABLE IF EXISTS `translations`;
 CREATE TABLE `translations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `from_username` char(64) DEFAULT NULL,
   `from_domain` char(64) DEFAULT NULL,
   `match_regex` char(64) DEFAULT NULL,
@@ -10,7 +11,9 @@ CREATE TABLE `translations` (
   `tran_prefix` char(64) DEFAULT NULL,
   `tran_user` char(64) DEFAULT NULL,
   `tran_domain` char(64) DEFAULT NULL,
+  `tran_port` int(11) DEFAULT NULL,
   `tran_add_header` char(255) DEFAULT NULL,
   `tran_priority` int(10) NOT NULL DEFAULT '99',
+  UNIQUE KEY `id` (`id`),
   KEY `from_username` (`from_username`,`from_domain`,`match_regex`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1 

@@ -3,6 +3,7 @@ debug_level = '3'
 
 log_facility = 'LOG_LOCAL2'
 listen_ip = 'xxx.xxx.xxx.xxx'
+listen_ipv6 = 'xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx'
 listen_port = '5060'
 tls_listen_port = '5061'
 ws_listen_port = '8080'

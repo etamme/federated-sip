@@ -13,6 +13,7 @@ log_facility=<%= log_facility %>
 
 # network settings
 listen=udp:<%= listen_ip %>:<%= listen_port %>
+listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
 listen=tcp:<%= listen_ip %>:<%= listen_port %>
 listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
@@ -36,7 +37,7 @@ loadmodule "signaling.so"
 loadmodule "sl.so"
 loadmodule "tm.so"
 loadmodule "rr.so"
-loadmodule "db_mysql.so"
+loadmodule "db_sqlite.so"
 loadmodule "dialog.so"
 loadmodule "maxfwd.so"
 loadmodule "usrloc.so"
@@ -48,7 +49,6 @@ loadmodule "uri.so"
 loadmodule "auth.so"
 loadmodule "auth_db.so"
 loadmodule "nathelper.so"
-loadmodule "alias_db.so"
 loadmodule "rtpengine.so"
 loadmodule "avpops.so"
 loadmodule "pike.so"
@@ -79,6 +79,9 @@ modparam("registrar", "attr_avp", "$avp(attr)")
 modparam("nathelper","natping_interval", 15)
 modparam("nathelper", "received_avp", "$avp(received)")
 
+# ----- db_sqlite params ----
+modparam("db_sqlite", "load_extension", "/usr/lib/sqlite3/pcre.so")
+
 # ---- dialog params ----
 modparam("dialog", "db_mode", 1)
 modparam("dialog", "db_url", "<%= dialog_db_url %>")
@@ -93,10 +96,6 @@ modparam("usrloc", "db_url", "<%= usrloc_db_url %>")
 modparam("usrloc", "nat_bflag","uasnat")
 # use the domain portion to match users - not just the user portion
 modparam("usrloc", "use_domain",1)
-
-# ---- alias params ----
-modparam("alias_db", "db_url", "<%= alias_db_url %>")
-modparam("alias_db", "append_branches", 1)
 
 # ---- auth params ----
 modparam("auth_db", "calculate_ha1", 0)
@@ -389,11 +388,6 @@ route["initial_requests"] {
         xlog("L_INFO","$var(request_log) $cs: $rm: standardized request to e.164 $rU\n");
       }
     }
-    
-    # check to see if the request has an alias (this will be depricated)
-    if(alias_db_lookup("dbaliases","d")){
-      xlog("L_INFO","$var(request_log) $cs: $rm: applied alias $ru\n");
-    }
 
     # if this is an e.164 number, do an ENUM lookup on it 
     $var(is_enum)=0;
@@ -406,7 +400,7 @@ route["initial_requests"] {
     }
  
     # outbound routing translations
-    if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_port);$avp(tran_add_header)"))
+    if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header,tran_strip_port from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and (match_user_agent like '$ua%' or match_user_agent IS NULL )  and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_port);$avp(tran_add_header);$avp(tran_strip_port)"))
     {
   
       # if there is a full on user part replacement
@@ -431,15 +425,19 @@ route["initial_requests"] {
       }
 
       # translation port is all or nothing, no partial substitution
+      # also we can only strip the port if there is no port translation
       if($avp(tran_port)!=null) {
         $rp=$avp(tran_port);
+      } else if($avp(tran_strip_port)!=null) {
+        $rp="";
       }
+
 
       if($avp(tran_add_header)!=null) {
         append_hf("$avp(tran_add_header)");
       }
 
-      xlog("L_INFO","$var(request_log) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_port=$avp(tran_port) tran_add_header=$avp(tran_add_header)\n"); 
+      xlog("L_INFO","$var(request_log) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_port=$avp(tran_port) tran_strip_port=$avp(tran_strip_port) tran_add_header=$avp(tran_add_header)\n");
       xlog("L_INFO","$var(request_log) $cs: $rm: post translation RURI=$ru\n");
     }
    

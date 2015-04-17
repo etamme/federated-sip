@@ -196,8 +196,8 @@ route{
   #  We are using 1,2,32
  
   #  We are also checking to see if a Record-Route header is present.  We only want to do contact rewriting for
-  #  user agents that are "local" to us, aka immediately adjacent not using other proxy servers.
-  if ( !is_present_hf("Record-Route") && nat_uac_test("35")) {
+  #  user agents that are "local" to us, aka immediately adjacent not using other proxy servers and not IPv6
+  if ( af != INET6 && !is_present_hf("Record-Route") && nat_uac_test("35")) {
     xlog("L_NOTICE","$var(request_log) $cs: $rm: received request from uac behind nat\n");
     # append recieved and port to first via so we can route responses back
     force_rport();

@@ -12,8 +12,16 @@ log_stderror=no
 log_facility=<%= log_facility %>
 
 # network settings
-disable_tcp=yes
 listen=udp:<%= listen_ip %>:<%= listen_port %>
+listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
+listen=tcp:<%= listen_ip %>:<%= listen_port %>
+listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
+listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
+
+tcp_keepalive = 1
+tcp_keepcount = 5
+tcp_keepidle = 15
+tcp_keepinterval = 10
 
 #set module path
 mpath="<%= module_path %>"
@@ -21,11 +29,15 @@ mpath="<%= module_path %>"
 user=<%= user %>
 group=<%= group %>
 
-loadmodule "db_mysql.so"
+loadmodule "proto_tcp.so"
+loadmodule "proto_udp.so"
+loadmodule "proto_tls.so"
+loadmodule "proto_ws.so"
 loadmodule "signaling.so"
 loadmodule "sl.so"
 loadmodule "tm.so"
 loadmodule "rr.so"
+loadmodule "db_sqlite.so"
 loadmodule "dialog.so"
 loadmodule "maxfwd.so"
 loadmodule "usrloc.so"
@@ -37,13 +49,15 @@ loadmodule "uri.so"
 loadmodule "auth.so"
 loadmodule "auth_db.so"
 loadmodule "nathelper.so"
-loadmodule "alias_db.so"
 loadmodule "rtpengine.so"
 loadmodule "avpops.so"
 loadmodule "pike.so"
 loadmodule "domain.so"
 loadmodule "enum.so"
 loadmodule "stun.so"
+
+# ---- tcp params ----
+modparam("proto_tcp","tcp_async",1)
 
 # ---- tm params ----
 # enable transactional avps
@@ -65,6 +79,9 @@ modparam("registrar", "attr_avp", "$avp(attr)")
 modparam("nathelper","natping_interval", 15)
 modparam("nathelper", "received_avp", "$avp(received)")
 
+# ----- db_sqlite params ----
+modparam("db_sqlite", "load_extension", "/usr/lib/sqlite3/pcre.so")
+
 # ---- dialog params ----
 modparam("dialog", "db_mode", 1)
 modparam("dialog", "db_url", "<%= dialog_db_url %>")
@@ -79,10 +96,6 @@ modparam("usrloc", "db_url", "<%= usrloc_db_url %>")
 modparam("usrloc", "nat_bflag","uasnat")
 # use the domain portion to match users - not just the user portion
 modparam("usrloc", "use_domain",1)
-
-# ---- alias params ----
-modparam("alias_db", "db_url", "<%= alias_db_url %>")
-modparam("alias_db", "append_branches", 1)
 
 # ---- auth params ----
 modparam("auth_db", "calculate_ha1", 0)
@@ -113,19 +126,32 @@ modparam("stun","alternate_port","6050")
 # ----- rtpengine params ----
 modparam("rtpengine", "rtpengine_sock", "udp:<%= listen_ip %>:60000")
 
+# ----- tls params ----
+modparam("proto_tls", "require_cert", "0")
+modparam("proto_tls", "verify_cert", "0")
+modparam("proto_tls", "tls_method", "SSLv23")
+# we are only doing server side tls - aka we will not make outbound tls connections
+modparam("proto_tls", "certificate", "/usr/local/etc/opensips/tls/server/server-cert.pem")
+modparam("proto_tls", "private_key", "/usr/local/etc/opensips/tls/server/server-privkey.pem")
+modparam("proto_tls", "ca_list", "/usr/local/etc/opensips/tls/server/server-calist.pem")
+
 # branch flags
 # ------------
 # uasnat - UAS behind nat
+# uas_ws - UAS is a websockets client
 
 # avps
 # ------------
 # uacnat - transactional avp for detecting UAC behind nat on response
+# attr   - set on before userlocation save, and restored on lookup
 
 # routes
 # ------
 # route                        - general request processing
-# route["initial_requests"]    - initial request route processing          
-# route["sequential_requests"] - sequential request route processing          
+# route["initial_requests"]    - initial request route processing
+# route["sequential_requests"] - sequential request route processing
+# branch_route["rtpengine"]    - processing for rtpengine flags per branch
+# onreply_route["reply"]       - reply processing for nat and rtpengine flags
 
 # main request routing logic
 route{
@@ -136,11 +162,11 @@ route{
   $var(request_log)="route                     :";
 
   # some scanner mitigation
-  
+
   # check to see if the src ip is flooding us and drop requests accordingly
-  if (!pike_check_req()) { exit; }
+  if ( src_ip != myself && !pike_check_req() ) { exit; }
   # if the packet contains sipviscious or freindly-scanner drop it
-  if(search("sipvicious") || search('freindly-scanner') || search('VaxSip')) { exit;}
+  if( $ua=="sipvicious" || $ua=="freindly-scanner" || $ua=="VaxSip" ) { exit; }
 
   # kill any requests that we do not handle
   if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO|MESSAGE")) {
@@ -170,7 +196,7 @@ route{
   $avp(uacnat)=0;
 
   # UAC nat detection
-  # 
+  #
   #  nat_uac_test(flags)
   #
   #  Tries to guess if client's request originated behind a nat. The parameter determines what heuristics is used.
@@ -189,12 +215,12 @@ route{
   #
   #  32 - address in Contact is compared against source IP address of signaling
   #
-  #  64 - Port in Contact is compared against source port of signaling 
+  #  64 - Port in Contact is compared against source port of signaling
   #
-  #  All flags can be bitwise combined, the test returns true if any of the tests identified a NAT. 
+  #  All flags can be bitwise combined, the test returns true if any of the tests identified a NAT.
   #
   #  We are using 1,2,32
- 
+
   #  We are also checking to see if a Record-Route header is present.  We only want to do contact rewriting for
   #  user agents that are "local" to us, aka immediately adjacent not using other proxy servers and not IPv6
   if ( af != INET6 && !is_present_hf("Record-Route") && nat_uac_test("35")) {
@@ -207,23 +233,12 @@ route{
       fix_nated_register();
     } else {
       fix_nated_contact();
-      # this helps us know if the UAS (requested destination) in a 
+      # this helps us know if the UAS (requested destination) in a
       # sequential request is behind a nat
       search_append('Contact:.*sip:[^>[:cntrl:]]*', ';nat=yes');
     }
   }
 
-  # handle rtp proxying for both initial and sequential requests
-  if ( (is_method("INVITE") || is_method("ACK")) && has_body("application/sdp") ) {
-    if( is_method("ACK") ){
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine answer\n");
-      rtpengine_answer("replace-session-connection ICE=remove");
-    } else {
-      rtpengine_offer("replace-session-connection ICE=remove");
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine offer\n");
-    }
-  }
-  
   # we will hand off to either initial or sequential request processing blocks
   # that will return and continue executing the code after this if/else
 
@@ -233,10 +248,13 @@ route{
   }
   # sequential request processing
   else {
+    if (is_method("CANCEL|BYE")) {
+      rtpengine_delete();
+    }
     route("sequential_requests");
   }
-  
-  # set onreply_route[1] b/c transactional avp's are not present in onreply_route[0]
+
+  # set our reply route
   t_on_reply("reply");
 
   # all processing has been completed, t_relay to the next hop
@@ -244,34 +262,42 @@ route{
     sl_reply_error();
   };
   exit;
-} 
+}
 
 # process initial requests
 route["initial_requests"] {
   $var(request_log)="route[initial_requests]   :";
   if(!is_method("REGISTER|OPTIONS")){
-    xlog("L_NOTICE","$var(request_log) $cs: $rm: received initial request to $ru\n");
+    xlog("L_INFO","$var(request_log) $cs: $rm: received initial request to $ru\n");
   }
   # preloaded route checking
   if (loose_route() && !is_method("ACK|CANCEL")) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rm: initial request with preloaded routes [$fu/$tu/$ru/$ci] - rejecting\n");
+    xlog("L_INFO","$var(request_log) $cs: $rm: initial request with preloaded routes [$fu/$tu/$ru/$ci] - rejecting\n");
     sl_send_reply("403","Preload Route denied");
     exit;
   }
-  
+
   # we only accept requests to a user, not to a server
   if ($rU==NULL && !is_method("REGISTER|OPTIONS")) {
     # request with no Username in RURI
     sl_send_reply("484","Address Incomplete");
     exit;
   }
-  
+
+  # set the route for processing branches
+  t_on_branch("rtpengine");
+
+  # Detect if UAC is websockets client and set flag for later processing
+  if ( proto == WS ) {
+    setflag(uac_ws);
+  }
+
   # handle registrations
   if (is_method("REGISTER")) {
     # authenticate the REGISTER requests, do not challenge domains that are "unauthorized"
     if (is_from_local("$var(attrs)")) {
        if($var(attrs)=="noauth")
-         $avp(unauthorized)=0;
+         $avp(unauthorized)=1;
     }
 
     if($avp(unauthorized)==0){
@@ -279,26 +305,31 @@ route["initial_requests"] {
         www_challenge("", "0");
         exit;
       }
-      # make sure they are registering a legitimate AOR, not just using correct auth credentials 
+      # make sure they are registering a legitimate AOR, not just using correct auth credentials
       if (!db_check_to()) {
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: attempt to register with bad To header\n");
+        xlog("L_INFO","$var(request_log) $cs: $rm: attempt to register with bad To header\n");
         sl_send_reply("403","Forbidden auth ID");
         exit;
       }
-    }  
-    # We have authorized a UAC, now if they are behind a NAT, we need to 
+    }
+    # We have authorized a UAC, now if they are behind a NAT, we need to
     # set the nat branch flag before we save.  This will then be restored
     # on a call to lookup, allowing us to detect a NAT'd UAS or "callee" in
-    # a branch route, or onreply route.  In any "main route" the bflag will be 
+    # a branch route, or onreply route.  In any "main route" the bflag will be
     # for the first branch if there is more than one.
     if ($avp(uacnat)==1) {
       setbflag(uasnat);
     }
+    # If the client is using websocket (webrtc) and save the attribute for detection later on location lookup
+    if ( isflagset(uac_ws) ) {
+      setbflag(uas_ws);
+    }
+
     # comment out registration saving to reduce logs
-    # xlog("L_NOTICE","$var(request_log) $cs: $rm: saving registration for $tu\n");
+    # xlog("L_INFO","$var(request_log) $cs: $rm: saving registration for $tu\n");
     if (!save("location","p0v")) {
       sl_reply_error();
-    } 
+    }
     exit;
   }
 
@@ -316,13 +347,13 @@ route["initial_requests"] {
   if (is_method("INVITE")) {
     create_dialog();
   }
-  xlog("L_NOTICE","$var(request_log) $cs: $rm: fU=$fU fd=$fd rU=$rU\n");
+  xlog("L_INFO","$var(request_log) $cs: $rm: fU=$fU fd=$fd rU=$rU\n");
 
   # Initial INVITE processing
-  # 
+  #
   # We authenticate the user for any INVITE that is to an external domain
   # what does this mean of calling?
-  # 
+  #
   # PSTN - This proxy has no "built in" pstn termination.  We only standardize numbers to e.164 format
   #        from there we will do ENUM lookups on e.164.arpa and e.164.org.  Either of those look ups
   #        could succeed and change the RURI to be an external domain, at which point we will challenge
@@ -333,50 +364,45 @@ route["initial_requests"] {
   #                If a user wants to send calls to a SIP carrier for termination, they must add a
   #                translation that will match the request user portion of the RURI, then apply an
   #                appropriate strip/prefix/translation domain for the carrier.
-  #                Be aware that if a e.164 number is detected without the + prefix, the + will be 
+  #                Be aware that if a e.164 number is detected without the + prefix, the + will be
   #                appended AUTOMATICALLY before the translation lookup.
-  # 
+  #
   # SIP  - we only openly accept un-authenticated INVITE requests to this proxy with a domain that we service
   #        AKA we are the last hop to a subscriber.  This is determined by the domains stored in the domain
   #        table and will be checked by is_host_uri_local()
   #
-  # PROCESS - look up any alias, then apply any matching  translation.  If at this point the domain 
-  #           is external, authenticate.  if the domain is local, we can proceed to doing a user 
+  # PROCESS - look up any alias, then apply any matching  translation.  If at this point the domain
+  #           is external, authenticate.  if the domain is local, we can proceed to doing a user
   #           location lookup, and pass the call.
 
   if (method=="INVITE" || method=="MESSAGE" || method=="NOTIFY") {
     #  match e.164 numbers that may or may not be prefixed with +
     #  add the + prefix if it is missing, then do an ENUM lookup
     #
-    #           ( Domestic +1 NPA NXX XXXX matching     )  ( + CC Number  international )  
+    #           ( Domestic +1 NPA NXX XXXX matching     )  ( + CC Number  international )
     #             +  1  N     PA      N   XX     XXXX     |  +  N  XXXXXXXXXXXXX
     if($rU =~ "^(\+?(1[2-9][0-9]{2}[2-9][0-9]{2}[0-9]{4})|(\+?[2-9][0-9]{6,14}))$"){
       if(!($rU=~"^\+")){
         # this is a phone number that is missing the e.164 + prefix, so prepend it
         $rU="+"+$rU;
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: standardized request to e.164 $rU\n");
+        xlog("L_INFO","$var(request_log) $cs: $rm: standardized request to e.164 $rU\n");
       }
     }
-    
-    # check to see if the request has an alias (this will be depricated)
-    if(alias_db_lookup("dbaliases","d")){
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: applied alias $ru\n");
-    }
 
-    # if this is an e.164 number, do an ENUM lookup on it 
+    # if this is an e.164 number, do an ENUM lookup on it
     $var(is_enum)=0;
     if($var(use_enum)==1 && $rU =~ "^(\+(1[2-9][0-9]{2}[2-9][0-9]{2}[0-9]{4})|(\+[2-9][0-9]{6,14}))$"){
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: doing enum lookup on e164.arpa and e164.org\n");
+      xlog("L_INFO","$var(request_log) $cs: $rm: doing enum lookup on e164.arpa and e164.org\n");
       if(enum_query() || enum_query("e164.org.")){
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: ENUM query set RURI=$ru\n");
+        xlog("L_INFO","$var(request_log) $cs: $rm: ENUM query set RURI=$ru\n");
         $var(is_enum)=1;
       }
     }
- 
+
     # outbound routing translations
-    if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_add_header from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_add_header)"))
+    if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header,tran_strip_port from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and (match_user_agent like '$ua%' or match_user_agent IS NULL )  and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_port);$avp(tran_add_header);$avp(tran_strip_port)"))
     {
-  
+
       # if there is a full on user part replacement
       # we do that, and do no strip/prefix
       if($avp(tran_user)!=null) {
@@ -398,71 +424,80 @@ route["initial_requests"] {
         $rd=$avp(tran_domain);
       }
 
+      # translation port is all or nothing, no partial substitution
+      # also we can only strip the port if there is no port translation
+      if($avp(tran_port)!=null) {
+        $rp=$avp(tran_port);
+      } else if($avp(tran_strip_port)!=null) {
+        $rp="";
+      }
+
+
       if($avp(tran_add_header)!=null) {
         append_hf("$avp(tran_add_header)");
       }
 
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_add_header=$avp(tran_add_header)\n"); 
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: post translation RURI=$ru\n");
+      xlog("L_INFO","$var(request_log) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_port=$avp(tran_port) tran_strip_port=$avp(tran_strip_port) tran_add_header=$avp(tran_add_header)\n");
+      xlog("L_INFO","$var(request_log) $cs: $rm: post translation RURI=$ru\n");
     }
-   
-     
-    #  ok we have done aliasing, translations, and ENUM lookup now check to see what the domain is 
+
+
+    #  ok we have done aliasing, translations, and ENUM lookup now check to see what the domain is
     if (is_uri_host_local()) {
-      # this is a local domain, do a user location lookup 
+      # this is a local domain, do a user location lookup
       $var(original_ruri)=$ru;
       if (!lookup("location","m") ) {
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: no registration found for $rU - sending 404\n");
+        xlog("L_INFO","$var(request_log) $cs: $rm: no registration found for $rU - sending 404\n");
         t_newtran();
         t_reply("404", "Not Found");
         exit;
       } else {
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
+        xlog("L_INFO","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
       }
-    } else { 
-      
+    } else {
+
       # challenge requests to external domains
       if($avp(unauthorized)==0){
         if (!proxy_authorize("", "subscriber")) {
-          xlog("L_NOTICE","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");
+          xlog("L_INFO","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");
           proxy_challenge("", "0");
           exit;
         } else {
           # caller authorized
-          xlog("L_NOTICE","$var(request_log) $cs: $rm: authorized request\n");
+          xlog("L_INFO","$var(request_log) $cs: $rm: authorized request\n");
           consume_credentials();
         }
-        # check to see if the from header is one of our known users 
+        # check to see if the from header is one of our known users
         if (!db_check_from()) {
-          xlog("L_NOTICE","$var(request_log) $cs: $rm: unknown user in From header - rejecting\n");
+          xlog("L_INFO","$var(request_log) $cs: $rm: unknown user in From header - rejecting\n");
           sl_send_reply("403","Forbidden auth ID");
           exit;
         }
       }
     }
-  } 
+  }
   # return to main route block for rtp proxying and t_relay
   return;
 }
 
 # process sequential requests
 route["sequential_requests"] {
-  $var(request_log)="route[sequential_requests]:";
-  xlog("L_NOTICE","$var(request_log) $cs: $rm: received sequential request\n");
+  $var(sequential_log)="route[sequential_requests]:";
+  xlog("L_INFO","$var(sequential_log) $cs: $rm: received sequential request\n");
 
   # UAS NAT detection
   # we append ;nat=yes to the contact when we detect NAT on a UAC.  if this
   # paramater is present in the RURI of a sequential request, it means that
-  # that the UAS of this request is behind a NAT, and we should set bflag 1 
+  # that the UAS of this request is behind a NAT, and we should set bflag 1
   # to indicate that for the remainder of the transaction
   if (subst_uri('/(sip:.*);nat=yes/\1/')) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rm: uas is behind a nat (previously detected)\n");  
+    xlog("L_INFO","$var(sequential_log) $cs: $rm: uas is behind a nat (previously detected)\n");
     setbflag(uasnat);
   }
 
   # sequential requests should take the path built up from record-routing
   if (loose_route()) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rm: loose routing\n");
+    xlog("L_INFO","$var(sequential_log) $cs: $rm: loose routing\n");
   } else {
     if ( is_method("ACK") ) {
       if (! t_check_trans() ) {
@@ -471,11 +506,11 @@ route["sequential_requests"] {
         exit;
       } else {
         # ACK to a negative response (wont loose route) - just let the main route t_relay
-        xlog("L_NOTICE","$var(request_log) $cs: $rm: received ACK to negative response - relaying\n");
+        xlog("L_INFO","$var(sequential_log) $cs: $rm: received ACK to negative response - relaying\n");
       }
     }else if ( uri != myself ) {
     # some other sequential request that is bogus
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: received bogus sequential request - sending 404\n");
+      xlog("L_INFO","$var(sequential_log) $cs: $rm: received bogus sequential request - sending 404\n");
       sl_send_reply("404","Not here");
       exit;
     }
@@ -483,28 +518,84 @@ route["sequential_requests"] {
   return;
 }
 
-onreply_route["reply"] {
-  $var(request_log)="onreply_route             :";
-  xlog("L_NOTICE","$var(request_log) $cs: $rs: response\n");
+branch_route[rtpengine] {
+  $var(branch_log)="branch[" + $T_branch_idx + "]                 :";
 
-  # handle rtp proxying for responses
+  xlog("L_INFO","$var(branch_log) $cs: $rm: message flags: $mf\n");
+  xlog("L_INFO","$var(branch_log) $cs: $rm: branch flags: $bf\n");
+
+  # handle rtp proxying for both initial and sequential requests
+  if ( (is_method("INVITE") || is_method("ACK") || is_method("PRACK")) && has_body("application/sdp") ) {
+    # set rtpengine flags based on whether uac or uas are websockets
+    if (isflagset(uac_ws) && isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
+      xlog("L_INFO","$var(branch_log) $cs: $rm: uac and uas are both websockets\n");
+    }
+    else if (isflagset(uac_ws) && !isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      xlog("L_INFO","$var(branch_log) $cs: $rm: uac is ws uas is not\n");
+    }
+    else if (!isflagset(uac_ws) && isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "UDP/TLS/RTP/SAVPF ICE=force";
+      xlog("L_INFO","$var(branch_log) $cs: $rm: uas is ws uac is not\n");
+    }
+    else if (!isflagset(uac_ws) && !isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      xlog("L_INFO","$var(branch_log) $cs: $rm: neither uac or uas are websocket\n");
+    }
+
+    if( is_method("ACK") || is_method("PRACK") ){
+      xlog("L_INFO","$var(branch_log) $cs: $rm: rtpengine answer $var(rtpengine_flags)\n");
+      rtpengine_answer("$var(rtpengine_flags)");
+    } else {
+      rtpengine_offer("$var(rtpengine_flags)");
+      xlog("L_INFO","$var(branch_log) $cs: $rm: rtpengine offer $var(rtpengine_flags)\n");
+    }
+  }
+}
+
+onreply_route["reply"] {
+  $var(reply_log)="onreply_route             :";
+  xlog("L_INFO","$var(reply_log) $cs: $rs: response\n");
+  xlog("L_INFO","$var(reply_log) $cs: $rs: message flags: $mf\n");
+  xlog("L_INFO","$var(reply_log) $cs: $rs: branch flags: $bf\n");
+
+  # rtp proxying for responses
   if ( has_body("application/sdp") ) {
+    # set rtpengine flags based on whether uac or uas are websockets
+    if (isflagset(uac_ws) && isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
+      xlog("L_INFO","$var(reply_log) $cs: $rs: uac and uas are both websockets\n");
+    }
+    else if (isflagset(uac_ws) && !isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "UDP/TLS/RTP/SAVPF ICE=force";
+      xlog("L_INFO","$var(reply_log) $cs: $rs: uac is ws uas is not\n");
+    }
+    else if (!isflagset(uac_ws) && isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      xlog("L_INFO","$var(reply_log) $cs: $rs: uas is ws uac is not\n");
+    }
+    else if (!isflagset(uac_ws) && !isbflagset(uas_ws)) {
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      xlog("L_INFO","$var(reply_log) $cs: $rs: neither uac or uas are websocket\n");
+    }
+
     if ( $rs=="183" ) {
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine offer\n");
-      rtpengine_offer("replace-session-connection ICE=remove");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: rtpengine offer $var(rtpengine_flags)\n");
+      rtpengine_offer("$var(rtpengine_flags)");
     } else if ( $rs=="200" ) {
-      xlog("L_NOTICE","$var(request_log) $cs: $rm: rtpengine answer\n");
-      rtpengine_answer("replace-session-connection ICE=remove");
+      xlog("L_INFO","$var(reply_log) $cs: $rs: rtpengine answer $var(rtpengine_flags)\n");
+      rtpengine_answer("$var(rtpengine_flags)");
     }
   }
 
-
+  # fix contact for uas behind nat
   if (isbflagset(uasnat)) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rs: uas behind nat (previously detected), fixing contact\n");
+    xlog("L_INFO","$var(reply_log) $cs: $rs: uas behind nat (previously detected), fixing contact\n");
     fix_nated_contact();
   }
   else if (nat_uac_test("1")) {
-    xlog("L_NOTICE","$var(request_log) $cs: $rs: uas behind nat, fixing contact\n");
+    xlog("L_INFO","$var(reply_log) $cs: $rs: uas behind nat, fixing contact\n");
     fix_nated_contact();
   }
 }

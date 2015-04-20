@@ -195,6 +195,13 @@ route{
   # setup avp for detecting uac behind a nat in the response
   $avp(uacnat)=0;
 
+  # check if UAC is ipv6
+  if(  af == INET6 ) {
+    $avp(uac_ipv)="IP6";
+  } else {
+    $avp(uac_ipv)="IP4";
+  }
+
   # UAC nat detection
   # 
   #  nat_uac_test(flags)
@@ -223,7 +230,7 @@ route{
  
   #  We are also checking to see if a Record-Route header is present.  We only want to do contact rewriting for
   #  user agents that are "local" to us, aka immediately adjacent not using other proxy servers.
-  if ( !is_present_hf("Record-Route") && nat_uac_test("35")) {
+  if ( $avp(uac_ipv) == "IP4" && !is_present_hf("Record-Route") && nat_uac_test("35")) {
     xlog("L_INFO","$var(request_log) $cs: $rm: received request from uac behind nat\n");
     # append recieved and port to first via so we can route responses back
     force_rport();
@@ -453,6 +460,11 @@ route["initial_requests"] {
         exit;
       } else {
         xlog("L_INFO","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
+        if( $dd =~ "^([0-9]{1,3}\.){3}[0-9]{1,3}$" ) {
+          $avp(uas_ipv)="IP4";
+        } else {
+          $avp(uas_ipv)="IP6";
+        }
       }
     } else { 
       
@@ -474,6 +486,8 @@ route["initial_requests"] {
           exit;
         }
       }
+      # non local domain - assuming IPV4
+      $avp(uas_ipv)="IP4";
     }
   } 
   # return to main route block for rtp proxying and t_relay
@@ -544,6 +558,9 @@ branch_route[rtpengine] {
       xlog("L_INFO","$var(branch_log) $cs: $rm: neither uac or uas are websocket\n");
     }
 
+    # set the ip version address family
+    $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $avp(uas_ipv);
+
     if( is_method("ACK") || is_method("PRACK") ){
       xlog("L_INFO","$var(branch_log) $cs: $rm: rtpengine answer $var(rtpengine_flags)\n");
       rtpengine_answer("$var(rtpengine_flags)");
@@ -559,6 +576,13 @@ onreply_route["reply"] {
   xlog("L_INFO","$var(reply_log) $cs: $rs: response\n");
   xlog("L_INFO","$var(reply_log) $cs: $rs: message flags: $mf\n");
   xlog("L_INFO","$var(reply_log) $cs: $rs: branch flags: $bf\n");
+
+  # save UAS ipv info for rtpengine flags
+  if ( af == INET6 ) {
+    $avp(uas_ipv)="INET6";
+  } else {
+    $avp(uas_ipv)="INET4";
+  }
 
   # rtp proxying for responses
   if ( has_body("application/sdp") ) {
@@ -579,6 +603,9 @@ onreply_route["reply"] {
       $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
       xlog("L_INFO","$var(reply_log) $cs: $rs: neither uac or uas are websocket\n");
     }
+
+    # set the ip version address family
+    $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $avp(uac_ipv);
 
     if ( $rs=="183" ) {
       xlog("L_INFO","$var(reply_log) $cs: $rs: rtpengine offer $var(rtpengine_flags)\n");

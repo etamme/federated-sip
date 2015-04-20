@@ -467,11 +467,7 @@ route["initial_requests"] {
         exit;
       } else {
         xlog("L_INFO","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
-        if( isbflagset(uas_ip4) ) {
-          $avp(uas_ipv)="IP4";
-        } else {
-          $avp(uas_ipv)="IP6";
-        }
+        
       }
     } else { 
       
@@ -544,6 +540,11 @@ branch_route[rtpengine] {
 
   xlog("L_INFO","$var(branch_log) $cs: $rm: message flags: $mf\n");
   xlog("L_INFO","$var(branch_log) $cs: $rm: branch flags: $bf\n");
+  if( isbflagset(uas_ip4) ) {
+    $avp(uas_ipv)="IP4";
+  } else {
+    $avp(uas_ipv)="IP6";
+  }
 
   # handle rtp proxying for both initial and sequential requests
   if ( (is_method("INVITE") || is_method("ACK") || is_method("PRACK")) && has_body("application/sdp") ) {
@@ -585,10 +586,12 @@ onreply_route["reply"] {
   xlog("L_INFO","$var(reply_log) $cs: $rs: branch flags: $bf\n");
 
   # save UAS ipv info for rtpengine flags
-  if ( af == INET6 ) {
-    $avp(uas_ipv)="INET6";
-  } else {
-    $avp(uas_ipv)="INET4";
+  if ( !isbflagset(uas_ip4) && !isbflagset(uas_ip6) ) {
+    if( af == INET6 ) {
+      $avp(uas_ipv)="INET6";
+    } else {
+      $avp(uas_ipv)="INET4";
+    }
   }
 
   # rtp proxying for responses

@@ -332,6 +332,13 @@ route["initial_requests"] {
       setbflag(uas_ws);
     }
 
+    # save the ip version info in a bflag
+    if ( $avp(uac_ipv)=="IP4" ) {
+      setbflag(uas_ip4);
+    } else {
+      setbflag(uas_ip6);
+    }
+
     # comment out registration saving to reduce logs
     # xlog("L_INFO","$var(request_log) $cs: $rm: saving registration for $tu\n");
     if (!save("location","p0v")) {
@@ -460,7 +467,7 @@ route["initial_requests"] {
         exit;
       } else {
         xlog("L_INFO","$var(request_log) $cs: $rm: found registration for $var(original_ruri)\n");
-        if( $dd =~ "^([0-9]{1,3}\.){3}[0-9]{1,3}$" ) {
+        if( isbflagset(uas_ip4) ) {
           $avp(uas_ipv)="IP4";
         } else {
           $avp(uas_ipv)="IP6";

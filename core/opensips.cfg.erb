@@ -15,8 +15,11 @@ log_facility=<%= log_facility %>
 listen=udp:<%= listen_ip %>:<%= listen_port %>
 listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
 listen=tcp:<%= listen_ip %>:<%= listen_port %>
+listen=tcp:[<%= listen_ipv6 %>]:<%= listen_port%>
 listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
+listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
+listen=ws:[<%= listen_ipv6 %>]:<%= ws_listen_port %>
 
 tcp_keepalive = 1
 tcp_keepcount = 5
@@ -589,9 +592,9 @@ onreply_route["reply"] {
   # save UAS ipv info for rtpengine flags
   if ( !isbflagset(uas_ip4) && !isbflagset(uas_ip6) ) {
     if( af == INET6 ) {
-      $avp(uas_ipv)="INET6";
+      $avp(uas_ipv)="IP6";
     } else {
-      $avp(uas_ipv)="INET4";
+      $avp(uas_ipv)="IP4";
     }
   }
 

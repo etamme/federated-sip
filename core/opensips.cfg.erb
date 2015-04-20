@@ -540,9 +540,10 @@ branch_route[rtpengine] {
 
   xlog("L_INFO","$var(branch_log) $cs: $rm: message flags: $mf\n");
   xlog("L_INFO","$var(branch_log) $cs: $rm: branch flags: $bf\n");
-  if( isbflagset(uas_ip4) ) {
+  if ( isbflagset(uas_ip4) ) {
     $avp(uas_ipv)="IP4";
-  } else {
+  } 
+  else if ( isbflagset(uas_ip6) ) {
     $avp(uas_ipv)="IP6";
   }
 

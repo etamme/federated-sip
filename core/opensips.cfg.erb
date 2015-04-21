@@ -70,9 +70,8 @@ modparam("tm", "onreply_avp_mode", 1)
 modparam("mi_fifo", "fifo_name", "/tmp/opensips_fifo")
 
 # ---- record route params ----
-# do not append from tag to the RR.  This is used to help determine
-# signaling direction (upstream/downstream) which we do not need
-modparam("rr", "append_fromtag", 0)
+# append from tag to the RR.  This is used to help determine
+modparam("rr", "append_fromtag", 1)
 
 # ---- registrar params ----
 modparam("registrar", "received_avp", "$avp(received)")
@@ -198,13 +197,6 @@ route{
   # setup avp for detecting uac behind a nat in the response
   $avp(uacnat)=0;
 
-  # check if UAC is ipv6
-  if(  af == INET6 ) {
-    $avp(uac_ipv)="IP6";
-  } else {
-    $avp(uac_ipv)="IP4";
-  }
-
   # UAC nat detection
   # 
   #  nat_uac_test(flags)
@@ -233,7 +225,7 @@ route{
  
   #  We are also checking to see if a Record-Route header is present.  We only want to do contact rewriting for
   #  user agents that are "local" to us, aka immediately adjacent not using other proxy servers.
-  if ( $avp(uac_ipv) == "IP4" && !is_present_hf("Record-Route") && nat_uac_test("35")) {
+  if ( af == INET && !is_present_hf("Record-Route") && nat_uac_test("35")) {
     xlog("L_INFO","$var(request_log) $cs: $rm: received request from uac behind nat\n");
     # append recieved and port to first via so we can route responses back
     force_rport();
@@ -335,8 +327,8 @@ route["initial_requests"] {
       setbflag(uas_ws);
     }
 
-    # save the ip version info in a bflag
-    if ( $avp(uac_ipv)=="IP4" ) {
+    # save the ip version info in a bflag to be restored on lookup()
+    if ( af == INET ) {
       setbflag(uas_ip4);
     } else {
       setbflag(uas_ip6);
@@ -363,6 +355,12 @@ route["initial_requests"] {
   # create dialog
   if (is_method("INVITE")) {
     create_dialog();
+    # check if UAC is ipv6
+    if(  af == INET6 ) {
+      $dlg_val(uac_ipv) = "IP6";
+    } else {
+      $dlg_val(uac_ipv) = "IP4";
+    }
   }
   xlog("L_INFO","$var(request_log) $cs: $rm: fU=$fU fd=$fd rU=$rU\n");
 
@@ -493,7 +491,7 @@ route["initial_requests"] {
         }
       }
       # non local domain - assuming IPV4
-      $avp(uas_ipv)="IP4";
+      $dlg_val(uas_ipv)="IP4";
     }
   } 
   # return to main route block for rtp proxying and t_relay
@@ -515,6 +513,9 @@ route["sequential_requests"] {
     setbflag(uasnat);
   }
 
+  # set the route for processing branches 
+  t_on_branch("rtpengine");
+
   # sequential requests should take the path built up from record-routing
   if (loose_route()) {
     xlog("L_INFO","$var(sequential_log) $cs: $rm: loose routing\n");
@@ -535,6 +536,11 @@ route["sequential_requests"] {
       exit;
     }
   }
+  # set direction flags for uas / uac based processing
+  resetbflag(upstream_request);
+  if ( is_direction("upstream") ){
+    setbflag(upstream_request);
+  }
   return;
 }
 
@@ -544,14 +550,15 @@ branch_route[rtpengine] {
   xlog("L_INFO","$var(branch_log) $cs: $rm: message flags: $mf\n");
   xlog("L_INFO","$var(branch_log) $cs: $rm: branch flags: $bf\n");
   if ( isbflagset(uas_ip4) ) {
-    $avp(uas_ipv)="IP4";
+    $dlg_val(uas_ipv)="IP4";
   } 
   else if ( isbflagset(uas_ip6) ) {
-    $avp(uas_ipv)="IP6";
+    $dlg_val(uas_ipv)="IP6";
   }
 
   # handle rtp proxying for both initial and sequential requests
   if ( (is_method("INVITE") || is_method("ACK") || is_method("PRACK")) && has_body("application/sdp") ) {
+    xlog("L_INFO","$var(branch_log) $cs: $rm: uac_ipv=$dlg_val(uac_ipv) uas_ipv=$dlg_val(uas_ipv)\n");
     # set rtpengine flags based on whether uac or uas are websockets
     if (isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
@@ -571,14 +578,18 @@ branch_route[rtpengine] {
     }
 
     # set the ip version address family
-    $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $avp(uas_ipv);
+    if ( isbflagset(upstream_request) ){
+      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uac_ipv);
+    } else {
+      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uas_ipv);
+    }
 
     if( is_method("ACK") || is_method("PRACK") ){
       xlog("L_INFO","$var(branch_log) $cs: $rm: rtpengine answer $var(rtpengine_flags)\n");
       rtpengine_answer("$var(rtpengine_flags)");
     } else {
-      rtpengine_offer("$var(rtpengine_flags)");
       xlog("L_INFO","$var(branch_log) $cs: $rm: rtpengine offer $var(rtpengine_flags)\n");
+      rtpengine_offer("$var(rtpengine_flags)");
     }
   }
 }
@@ -589,17 +600,19 @@ onreply_route["reply"] {
   xlog("L_INFO","$var(reply_log) $cs: $rs: message flags: $mf\n");
   xlog("L_INFO","$var(reply_log) $cs: $rs: branch flags: $bf\n");
 
-  # save UAS ipv info for rtpengine flags
-  if ( !isbflagset(uas_ip4) && !isbflagset(uas_ip6) ) {
-    if( af == INET6 ) {
-      $avp(uas_ipv)="IP6";
-    } else {
-      $avp(uas_ipv)="IP4";
-    }
-  }
 
   # rtp proxying for responses
   if ( has_body("application/sdp") ) {
+
+    # save UAS ipv info for rtpengine flags
+    if ( !isbflagset(uas_ip4) && !isbflagset(uas_ip6) ) {
+      if( af == INET6 ) {
+        $avp(uas_ipv)="IP6";
+      } else {
+        $avp(uas_ipv)="IP4";
+      }
+    }
+
     # set rtpengine flags based on whether uac or uas are websockets
     if (isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
@@ -619,7 +632,12 @@ onreply_route["reply"] {
     }
 
     # set the ip version address family
-    $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $avp(uac_ipv);
+    if ( isbflagset(upstream_request) ) {
+      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uas_ipv);
+      resetbflag(upstream_request);
+    } else {
+      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uac_ipv);
+    }
 
     if ( $rs=="183" ) {
       xlog("L_INFO","$var(reply_log) $cs: $rs: rtpengine offer $var(rtpengine_flags)\n");

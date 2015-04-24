@@ -355,6 +355,7 @@ route["initial_requests"] {
   # create dialog
   if (is_method("INVITE")) {
     create_dialog();
+    setflag(dialog_created);
     # check if UAC is ipv6
     if(  af == INET6 ) {
       $dlg_val(uac_ipv) = "IP6";
@@ -491,7 +492,9 @@ route["initial_requests"] {
         }
       }
       # non local domain - assuming IPV4
-      $dlg_val(uas_ipv)="IP4";
+      if (isflagset(dialog_created) ) {
+        $dlg_val(uas_ipv)="IP4";
+      }
     }
   } 
   # return to main route block for rtp proxying and t_relay
@@ -549,15 +552,17 @@ branch_route[rtpengine] {
 
   xlog("L_INFO","$var(branch_log) $cs: $rm: message flags: $mf\n");
   xlog("L_INFO","$var(branch_log) $cs: $rm: branch flags: $bf\n");
-  if ( isbflagset(uas_ip4) ) {
-    $dlg_val(uas_ipv)="IP4";
-  } 
-  else if ( isbflagset(uas_ip6) ) {
-    $dlg_val(uas_ipv)="IP6";
-  }
 
   # handle rtp proxying for both initial and sequential requests
   if ( (is_method("INVITE") || is_method("ACK") || is_method("PRACK")) && has_body("application/sdp") ) {
+    # store dialog values based on branch flags that were restored on call to lookup()
+    if ( isbflagset(uas_ip4) ) {
+      $dlg_val(uas_ipv)="IP4";
+    } 
+    else if ( isbflagset(uas_ip6) ) {
+      $dlg_val(uas_ipv)="IP6";
+    }
+
     xlog("L_INFO","$var(branch_log) $cs: $rm: uac_ipv=$dlg_val(uac_ipv) uas_ipv=$dlg_val(uas_ipv)\n");
     # set rtpengine flags based on whether uac or uas are websockets
     if (isflagset(uac_ws) && isbflagset(uas_ws)) {

@@ -170,7 +170,7 @@ route{
   # check to see if the src ip is flooding us and drop requests accordingly
   if ( src_ip != myself && !pike_check_req() ) { exit; }
   # if the packet contains sipviscious or freindly-scanner drop it
-  if( $ua=="sipvicious" || $ua=="freindly-scanner" || $ua=="VaxSip" ) { exit; }
+  if( $ua=~"^sipvicious" || $ua=~"^freindly-scanner" || $ua=~"^VaxSip" || $ua=~"^sipcli" ) { exit; }
 
   # kill any requests that we do not handle
   if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|CANCEL|REFER|OPTIONS|INFO|MESSAGE")) {

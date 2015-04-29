@@ -21,6 +21,8 @@ listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
 listen=ws:[<%= listen_ipv6 %>]:<%= ws_listen_port %>
 
+dns_try_ipv6 = 1
+
 tcp_keepalive = 1
 tcp_keepcount = 5
 tcp_keepidle = 15
@@ -472,28 +474,37 @@ route["initial_requests"] {
         
       }
     } else { 
-      
       # challenge requests to external domains
       if($avp(unauthorized)==0){
         if (!proxy_authorize("", "subscriber")) {
-          xlog("L_INFO","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");
-          proxy_challenge("", "0");
-          exit;
-        } else {
-          # caller authorized
-          xlog("L_INFO","$var(request_log) $cs: $rm: authorized request\n");
-          consume_credentials();
-        }
-        # check to see if the from header is one of our known users 
-        if (!db_check_from()) {
-          xlog("L_INFO","$var(request_log) $cs: $rm: unknown user in From header - rejecting\n");
-          sl_send_reply("403","Forbidden auth ID");
-          exit;
-        }
-      }
-      # non local domain - assuming IPV4
-      if (isflagset(dialog_created) ) {
-        $dlg_val(uas_ipv)="IP4";
+           xlog("L_INFO","$var(request_log) $cs: $rm: challenging request to external domain $rd\n");
+           proxy_challenge("", "0");
+           exit;
+         } else {
+           # caller authorized
+           xlog("L_INFO","$var(request_log) $cs: $rm: authorized request\n");
+           consume_credentials();
+         }
+         # check to see if the from header is one of our known users 
+         if (!db_check_from()) {
+           xlog("L_INFO","$var(request_log) $cs: $rm: unknown user in From header - rejecting\n");
+           sl_send_reply("403","Forbidden auth ID");
+           exit;
+         }
+       }
+
+       # non local domain, resolve A/AAAA to determine ipv6/ipv4
+       # NOTE this does not do SRV/NAPTR and is not a "complete" solution
+       if ( isflagset(dialog_created) ) {
+         $var(dest) = $rd;
+         $var(dest_ip) = $(var(dest){ip.resolve});
+         if ( $var(dest_ip) =~ "^([0-9]{1,3}\.){3}[0-9]{1,3}$" ) {
+           xlog("L_INFO","$var(request_log) $cs: $rm: non-local request to IPV4 destination: $var(dest_ip)\n");
+           $dlg_val(uas_ipv)="IP4";
+         } else {
+           xlog("L_INFO","$var(request_log) $cs: $rm: non-local request to IPV6 destination: $var(dest_ip)\n");
+           $dlg_val(uas_ipv)="IP6";
+         }
       }
     }
   } 

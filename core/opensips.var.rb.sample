@@ -3,18 +3,18 @@ debug_level = '3'
 
 log_facility = 'LOG_LOCAL2'
 listen_ip = 'xxx.xxx.xxx.xxx'
-listen_ipv6 = 'xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx'
+listen_ipv6 = 'xxxx:xxxx:xxxx:xxxx:xxxx:xxxxx:xxxx'
 listen_port = '5060'
 tls_listen_port = '5061'
 ws_listen_port = '8080'
-db_url='mysql://user:password@localhost/proxydb'
+db_url='sqlite://var/db/opensips'
 
-module_path = '/usr/local/opensips/lib64/opensips/modules/'
+module_path = '/usr/local/lib64/opensips/modules/'
 
 user = 'opensips'
 group = 'opensips'
 
-use_enum = '1'
+use_enum = '0'
 
 # We set db_url then reference it for all other db_urls
 # since they share a common db.  You can set them individually.

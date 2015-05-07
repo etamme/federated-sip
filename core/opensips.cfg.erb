@@ -174,10 +174,10 @@ route{
   # check to see if the src ip is flooding us and drop requests accordingly
   if ( src_ip != myself && !pike_check_req() ) { exit; }
   # if the packet contains sipviscious or freindly-scanner drop it
-  if( $ua=~"^sipvicious" ||
+  if( $ua=~"^sipvicious"       ||
       $ua=~"^freindly-scanner" ||
-      $ua=~"^VaxSip" ||
-      $ua=~"^sipcli" )
+      $ua=~"^VaxSip"           ||
+      $ua=~"^sipcli")
   { exit; }
 
   # kill any requests that we do not handle
@@ -596,19 +596,19 @@ onreply_route["reply"] {
 route["to_e164"] {
   if($rU =~ "^(\+?1?([2-9][0-9]{2}[2-9][0-9]{2}[0-9]{4}))$") {
     # NANP ( +1 NPA NXX XXXX )
-    xlog("L_NOTICE","$var(prefix) NANP e.164 $rU\n");
     if ($(rU{s.len}) == 10) {
       $rU = "+1" + $rU;
     } else {
       $rU = "+1" + $(rU{s.substr,-10,10});
     }
+    xlog("L_NOTICE","$var(prefix) $cs: $rm: NANP e.164 $rU\n");
     return(1);
-  } else if ($rU =~ "^(\+?[2-9][0-9]{6,14}))$") {
+  } else if ($rU =~ "^(\+?[2-9][0-9]{6,14})$") {
     # International ( + CC XXXXXXXXXXXXX )
-    xlog("L_NOTICE","$var(prefix) International e.164 $rU\n");
     if ($rU !~ "^\+") {
       $rU = "+" + $rU;
     }
+    xlog("L_NOTICE","$var(prefix) $cs: $rm: international e.164 $rU\n");
     return(2);
   }
   return(-1);
@@ -629,7 +629,7 @@ route["enum_query"] {
 
 route["outbound_translations"] {
   # outbound routing translations
-  if($var(is_enum)==0 && avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header,tran_strip_port from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and (match_user_agent like '$ua%' or match_user_agent IS NULL )  and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_port);$avp(tran_add_header);$avp(tran_strip_port)"))
+  if(avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header,tran_strip_port from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and (match_user_agent like '$ua%' or match_user_agent IS NULL )  and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_port);$avp(tran_add_header);$avp(tran_strip_port)"))
   {
     # if there is a full on user part replacement
     # we do that, and do no strip/prefix

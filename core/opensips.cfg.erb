@@ -630,6 +630,12 @@ route["enum_query"] {
 }
 
 route["outbound_translations"] {
+
+  $var(log_query)=0;
+  if($var(log_query)){
+    xlog("L_INFO","$var(prefix) $cs: $rm: select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header,tran_strip_port from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and (match_user_agent like '$ua%' or match_user_agent IS NULL )  and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1\n");
+  }
+
   # outbound routing translations
   if(avp_db_query("select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header,tran_strip_port from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and (match_user_agent like '$ua%' or match_user_agent IS NULL )  and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1","$avp(tran_strip);$avp(tran_prefix);$avp(tran_user);$avp(tran_domain);$avp(tran_port);$avp(tran_add_header);$avp(tran_strip_port)"))
   {
@@ -662,7 +668,7 @@ route["outbound_translations"] {
     }
 
     if($avp(tran_add_header)!=null) {
-      append_hf("$avp(tran_add_header)");
+      append_hf("$avp(tran_add_header)\r\n");
     }
 
     xlog("L_INFO","$var(prefix) $cs: $rm: tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_port=$avp(tran_port) tran_strip_port=$avp(tran_strip_port) tran_add_header=$avp(tran_add_header)\n");

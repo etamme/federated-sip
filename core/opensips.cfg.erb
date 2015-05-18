@@ -393,13 +393,17 @@ route["initial_requests"] {
   #   proceed to doing a user location lookup, and pass the call.
 
   if (method=="INVITE" || method=="MESSAGE" || method=="NOTIFY") {
+
+    #  translations are standardized on e164 so fix any leading + formatting
+    $var(is_e164) = route("to_e164");
+
     #  translate request user@domain:port based on database rules
     route("outbound_translations");
 
     #  match e.164 numbers that may or may not be prefixed with +
     #  add the + prefix if it is missing, then do an ENUM lookup
     #  if use_enum is enabled
-    if (route("to_e164")) {
+    if ($var(is_e164)) {
       route("enum_query");
     }
 

@@ -400,9 +400,7 @@ route["initial_requests"] {
     #  translate request user@domain:port based on database rules
     route("outbound_translations");
 
-    #  match e.164 numbers that may or may not be prefixed with +
-    #  add the + prefix if it is missing, then do an ENUM lookup
-    #  if use_enum is enabled
+    #  if this is an e164 user portion, do an enum lookup if use_enum is enabled
     if ($var(is_e164)) {
       route("enum_query");
     }

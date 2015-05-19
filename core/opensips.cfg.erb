@@ -480,6 +480,7 @@ route["sequential_requests"] {
 
 branch_route[rtpengine] {
   $var(prefix)="branch[" + $T_branch_idx + "]                 :";
+  resetbflag(sdpoffer);
 
   xlog("L_INFO","$var(prefix) $cs: $rm: message flags: $mf\n");
   xlog("L_INFO","$var(prefix) $cs: $rm: branch flags: $bf\n");
@@ -528,6 +529,7 @@ branch_route[rtpengine] {
     } else {
       xlog("L_INFO","$var(prefix) $cs: $rm: rtpengine offer $var(rtpengine_flags)\n");
       rtpengine_offer("$var(rtpengine_flags)");
+      setbflag(sdpoffer);
     }
   }
 }
@@ -573,10 +575,10 @@ onreply_route["reply"] {
       $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uac_ipv);
     }
 
-    if ( $rs=="183" ) {
+    if ( $rs=="183" && !isbflagset(sdpoffer) ) {
       xlog("L_INFO","$var(prefix) $cs: $rs: rtpengine offer $var(rtpengine_flags)\n");
       rtpengine_offer("$var(rtpengine_flags)");
-    } else if ( $rs=="200" ) {
+    } else if ( $rs=="200" || $rs=="183") {
       xlog("L_INFO","$var(prefix) $cs: $rs: rtpengine answer $var(rtpengine_flags)\n");
       rtpengine_answer("$var(rtpengine_flags)");
     }

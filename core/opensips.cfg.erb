@@ -177,7 +177,8 @@ route{
   if( $ua=~"^sipvicious"       ||
       $ua=~"^freindly-scanner" ||
       $ua=~"^VaxSip"           ||
-      $ua=~"^sipcli")
+      $ua=~"^sipcli"           ||
+      $rd=="<%= listen_ip %>")
   { exit; }
 
   # kill any requests that we do not handle

@@ -91,7 +91,7 @@ modparam("dialog", "db_mode", 1)
 modparam("dialog", "db_url", "<%= dialog_db_url %>")
 
 # ---- user location params ----
-modparam("usrloc", "db_mode", 2)
+modparam("usrloc", "db_mode", 1)
 modparam("usrloc", "db_url", "<%= usrloc_db_url %>")
 
 # when a UAC sends nated register set a branch flag before saving.
@@ -179,7 +179,10 @@ route{
       $ua=~"^VaxSip"           ||
       $ua=~"^sipcli"           ||
       $rd=="<%= listen_ip %>")
-  { exit; }
+  {
+    xlog("L_INFO","$var(prefix) $cs: $rm: ban scanner $si\n");
+    exit; 
+  }
 
   # kill any requests that we do not handle
   if (!is_method("UPDATE|PRACK|SUBSCRIBE|NOTIFY|REGISTER|INVITE|ACK|BYE|

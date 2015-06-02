@@ -167,7 +167,7 @@ route{
   $var(use_enum)=<%= use_enum %>;
 
   # use variables in the xlog to make log output "standardized" in spacing
-  $var(prefix)="route                     : "+$(cs{s.fill.left, ' ', 6})+" "+$rm+":";
+  $var(prefix)="route                     : "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
 
   # some scanner mitigation
 
@@ -265,7 +265,7 @@ route{
 
 # process initial requests
 route["initial_requests"] {
-  $var(prefix)="route[initial_requests]   : "+$(cs{s.fill.left, ' ', 6})+" "+$rm+":";
+  $var(prefix)="route[initial_requests]   : "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
   if(!is_method("REGISTER|OPTIONS")){
     xlog("L_INFO","$var(prefix) received initial request to $ru\n");
   }
@@ -437,7 +437,7 @@ route["initial_requests"] {
 
 # process sequential requests
 route["sequential_requests"] {
-  $var(prefix)="route[sequential_requests]: "+$(cs{s.fill.left, ' ', 6})+" "+$rm+":";
+  $var(prefix)="route[sequential_requests]: "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
   xlog("L_INFO","$var(prefix) received sequential request\n");
 
   # UAS NAT detection
@@ -483,7 +483,7 @@ route["sequential_requests"] {
 }
 
 branch_route[rtpengine] {
-  $var(prefix)="branch[" + $T_branch_idx + "]                 : "+$(cs{s.fill.left, ' ', 6})+" "+$rm+":";
+  $var(prefix)="branch[" + $T_branch_idx + "]                 : "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
   resetbflag(sdpoffer);
 
   xlog("L_INFO","$var(prefix) message flags: $mf\n");
@@ -539,10 +539,10 @@ branch_route[rtpengine] {
 }
 
 onreply_route["reply"] {
-  $var(prefix)="onreply_route             : "+$(cs{s.fill.left, ' ', 6})+" "+$rs+":";
-  xlog("L_INFO","$var(prefix) $cs: $rs: response\n");
-  xlog("L_INFO","$var(prefix) $cs: $rs: message flags: $mf\n");
-  xlog("L_INFO","$var(prefix) $cs: $rs: branch flags: $bf\n");
+  $var(prefix)="onreply_route             : "+$(cs{s.width, 6})+": "+$(rs{s.width, 9})+":";
+  xlog("L_INFO","$var(prefix) response\n");
+  xlog("L_INFO","$var(prefix) message flags: $mf\n");
+  xlog("L_INFO","$var(prefix) branch flags: $bf\n");
 
   # rtp proxying for responses
   if ( has_body("application/sdp") ) {
@@ -559,16 +559,16 @@ onreply_route["reply"] {
     # set rtpengine flags based on whether uac or uas are websockets
     if (isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
-      xlog("L_INFO","$var(prefix) $cs: $rs: uac and uas are both websockets\n");
+      xlog("L_INFO","$var(prefix) uac and uas are both websockets\n");
     } else if (isflagset(uac_ws) && !isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "UDP/TLS/RTP/SAVPF ICE=force";
-      xlog("L_INFO","$var(prefix) $cs: $rs: uac is ws uas is not\n");
+      xlog("L_INFO","$var(prefix) uac is ws uas is not\n");
     } else if (!isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
-      xlog("L_INFO","$var(prefix) $cs: $rs: uas is ws uac is not\n");
+      xlog("L_INFO","$var(prefix) uas is ws uac is not\n");
     } else if (!isflagset(uac_ws) && !isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
-      xlog("L_INFO","$var(prefix) $cs: $rs: neither uac or uas are websocket\n");
+      xlog("L_INFO","$var(prefix) neither uac or uas are websocket\n");
     }
 
     # set the ip version address family
@@ -580,21 +580,21 @@ onreply_route["reply"] {
     }
 
     if ( $rs=="183" && !isbflagset(sdpoffer) ) {
-      xlog("L_INFO","$var(prefix) $cs: $rs: rtpengine offer $var(rtpengine_flags)\n");
+      xlog("L_INFO","$var(prefix) rtpengine offer $var(rtpengine_flags)\n");
       rtpengine_offer("$var(rtpengine_flags)");
     } else if ( $rs=="200" || $rs=="183") {
-      xlog("L_INFO","$var(prefix) $cs: $rs: rtpengine answer $var(rtpengine_flags)\n");
+      xlog("L_INFO","$var(prefix) rtpengine answer $var(rtpengine_flags)\n");
       rtpengine_answer("$var(rtpengine_flags)");
     }
   }
 
   # fix contact for uas behind nat
   if (isbflagset(uasnat)) {
-    xlog("L_INFO","$var(prefix) $cs: $rs: uas behind nat (previously detected), fixing contact\n");
+    xlog("L_INFO","$var(prefix) uas behind nat (previously detected), fixing contact\n");
     fix_nated_contact();
   }
   else if (nat_uac_test("1")) {
-    xlog("L_INFO","$var(prefix) $cs: $rs: uas behind nat, fixing contact\n");
+    xlog("L_INFO","$var(prefix) uas behind nat, fixing contact\n");
     fix_nated_contact();
   }
 }

@@ -14,12 +14,16 @@ log_facility=<%= log_facility %>
 # network settings
 listen=udp:<%= listen_ip %>:<%= listen_port %>
 listen=tcp:<%= listen_ip %>:<%= listen_port %>
+<%-if enable_tls-%>
 listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
+<%-end-%>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
 <%-if enable_ipv6-%>
 listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
 listen=tcp:[<%= listen_ipv6 %>]:<%= listen_port%>
+<%-if enable_tls-%>
 listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
+<%-end-%>
 listen=ws:[<%= listen_ipv6 %>]:<%= ws_listen_port %>
 
 dns_try_ipv6 = 1
@@ -38,7 +42,7 @@ group=<%= group %>
 
 loadmodule "proto_tcp.so"
 loadmodule "proto_udp.so"
-loadmodule "proto_tls.so"
+<%-if enable_tls-%>loadmodule "proto_tls.so"<%-end-%>
 loadmodule "proto_ws.so"
 loadmodule "signaling.so"
 loadmodule "sl.so"
@@ -132,7 +136,7 @@ modparam("stun","alternate_port","6050")
 
 # ----- rtpengine params ----
 modparam("rtpengine", "rtpengine_sock", "udp:<%= listen_ip %>:60000")
-
+<%-if enable_tls-%>
 # ----- tls params ----
 modparam("proto_tls", "require_cert", "0")
 modparam("proto_tls", "verify_cert", "0")
@@ -144,6 +148,7 @@ modparam("proto_tls", "private_key",
 	 "/usr/local/etc/opensips/tls/server/server-privkey.pem")
 modparam("proto_tls", "ca_list",
 	 "/usr/local/etc/opensips/tls/server/server-calist.pem")
+<%-end-%>
 
 # branch flags
 # ------------

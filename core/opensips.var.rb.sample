@@ -1,6 +1,7 @@
 $erb_context = binding
 debug_level = '3'
 enable_ipv6 = true
+enable_tls = true
 
 log_facility = 'LOG_LOCAL2'
 listen_ip = 'xxx.xxx.xxx.xxx'

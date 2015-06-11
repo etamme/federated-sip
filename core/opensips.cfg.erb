@@ -13,15 +13,17 @@ log_facility=<%= log_facility %>
 
 # network settings
 listen=udp:<%= listen_ip %>:<%= listen_port %>
-listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
 listen=tcp:<%= listen_ip %>:<%= listen_port %>
-listen=tcp:[<%= listen_ipv6 %>]:<%= listen_port%>
 listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
-listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
+<%-if enable_ipv6-%>
+listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
+listen=tcp:[<%= listen_ipv6 %>]:<%= listen_port%>
+listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
 listen=ws:[<%= listen_ipv6 %>]:<%= ws_listen_port %>
 
 dns_try_ipv6 = 1
+<%-end-%>
 
 tcp_keepalive = 1
 tcp_keepcount = 5

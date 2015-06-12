@@ -174,7 +174,8 @@ route{
   $var(use_enum)=<%= use_enum %>;
 
   # use variables in the xlog to make log output "standardized" in spacing
-  $var(prefix)="route                     : "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
+  $var(prefix)="route                     : "+
+		$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
 
   # some scanner mitigation
 
@@ -272,13 +273,16 @@ route{
 
 # process initial requests
 route["initial_requests"] {
-  $var(prefix)="route[initial_requests]   : "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
+  $var(prefix)="route[initial_requests]   : "+
+		$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
+
   if(!is_method("REGISTER|OPTIONS")){
     xlog("L_INFO","$var(prefix) received initial request to $ru\n");
   }
   # preloaded route checking
   if (loose_route() && !is_method("ACK|CANCEL")) {
-    xlog("L_INFO","$var(prefix) initial request with preloaded routes [$fu/$tu/$ru/$ci] - rejecting\n");
+    xlog("L_INFO","$var(prefix) initial request with preloaded routes "
+		  "[$fu/$tu/$ru/$ci] - rejecting\n");
     sl_send_reply("403","Preload Route denied");
     exit;
   }
@@ -328,7 +332,8 @@ route["initial_requests"] {
     if ($avp(uacnat)==1) {
       setbflag(uasnat);
     }
-    # If the client is using websocket (webrtc) and save the attribute for detection later on location lookup
+    # If the client is using websocket (webrtc) and save the attribute for
+    # detection later on location lookup
     if ( isflagset(uac_ws) ) {
       setbflag(uas_ws);
     }
@@ -429,10 +434,12 @@ route["initial_requests"] {
         $var(dest) = $rd;
         $var(dest_ip) = $(var(dest){ip.resolve});
         if ( $var(dest_ip) =~ "^([0-9]{1,3}\.){3}[0-9]{1,3}$" ) {
-          xlog("L_INFO","$var(prefix) non-local request to IPV4 destination: $var(dest_ip)\n");
+          xlog("L_INFO","$var(prefix) non-local request to IPV4 destination: "
+                        "$var(dest_ip)\n");
           $dlg_val(uas_ipv)="IP4";
         } else {
-          xlog("L_INFO","$var(prefix) non-local request to IPV6 destination: $var(dest_ip)\n");
+          xlog("L_INFO","$var(prefix) non-local request to IPV6 destination: "
+			"$var(dest_ip)\n");
           $dlg_val(uas_ipv)="IP6";
         }
       }
@@ -444,7 +451,8 @@ route["initial_requests"] {
 
 # process sequential requests
 route["sequential_requests"] {
-  $var(prefix)="route[sequential_requests]: "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
+  $var(prefix)="route[sequential_requests]: "+
+		$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
   xlog("L_INFO","$var(prefix) received sequential request\n");
 
   # UAS NAT detection
@@ -472,11 +480,13 @@ route["sequential_requests"] {
       } else {
         # ACK to a negative response (wont loose route)
         # just let the main route t_relay
-        xlog("L_INFO","$var(prefix) received ACK to negative response - relaying\n");
+        xlog("L_INFO","$var(prefix) received ACK to negative response - "
+                      "relaying\n");
       }
     } else if ( uri != myself ) {
       # some other sequential request that is bogus
-      xlog("L_INFO","$var(prefix) received bogus sequential request - sending 404\n");
+      xlog("L_INFO","$var(prefix) received bogus sequential request - "
+                    "sending 404\n");
       sl_send_reply("404","Not here");
       exit;
     }
@@ -490,7 +500,9 @@ route["sequential_requests"] {
 }
 
 branch_route[rtpengine] {
-  $var(prefix)="branch[" + $T_branch_idx + "]                 : "+$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
+  $var(prefix)="branch[" + $T_branch_idx + "]                 : "+
+		$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
+
   resetbflag(sdpoffer);
 
   xlog("L_INFO","$var(prefix) message flags: $mf\n");
@@ -510,28 +522,33 @@ branch_route[rtpengine] {
       $dlg_val(uas_ipv)="IP6";
     }
 
-    xlog("L_INFO","$var(prefix) uac_ipv=$dlg_val(uac_ipv) uas_ipv=$dlg_val(uas_ipv)\n");
+    xlog("L_INFO","$var(prefix) uac_ipv=$dlg_val(uac_ipv) "
+		  "uas_ipv=$dlg_val(uas_ipv)\n");
 
     # set rtpengine flags based on whether uac or uas are websockets
     if (isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "ICE=force-relay DTLS=passive";
       xlog("L_INFO","$var(prefix) uac and uas are both websockets\n");
     } else if (isflagset(uac_ws) && !isbflagset(uas_ws)) {
-      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection "+
+			      "replace-origin ICE=remove";
       xlog("L_INFO","$var(prefix) uac is ws uas is not\n");
     } else if (!isflagset(uac_ws) && isbflagset(uas_ws)) {
       $var(rtpengine_flags) = "UDP/TLS/RTP/SAVPF ICE=force";
       xlog("L_INFO","$var(prefix) uas is ws uac is not\n");
     } else if (!isflagset(uac_ws) && !isbflagset(uas_ws)) {
-      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection "+
+			      "replace-origin ICE=remove";
       xlog("L_INFO","$var(prefix) neither uac or uas are websocket\n");
     }
 
     # set the ip version address family
     if ( isbflagset(upstream_request) ){
-      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uac_ipv);
+      $var(rtpengine_flags)=$var(rtpengine_flags) +
+			    " address-family=" + $dlg_val(uac_ipv);
     } else {
-      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uas_ipv);
+      $var(rtpengine_flags)=$var(rtpengine_flags) +
+			    " address-family=" + $dlg_val(uas_ipv);
     }
 
     if( is_method("ACK") || is_method("PRACK") ){
@@ -546,7 +563,8 @@ branch_route[rtpengine] {
 }
 
 onreply_route["reply"] {
-  $var(prefix)="onreply_route             : "+$(cs{s.width, 6})+": "+$(rs{s.width, 9})+":";
+  $var(prefix)="onreply_route             : "+
+		$(cs{s.width, 6})+": "+$(rs{s.width, 9})+":";
   xlog("L_INFO","$var(prefix) response\n");
   xlog("L_INFO","$var(prefix) message flags: $mf\n");
   xlog("L_INFO","$var(prefix) branch flags: $bf\n");
@@ -571,19 +589,23 @@ onreply_route["reply"] {
       $var(rtpengine_flags) = "UDP/TLS/RTP/SAVPF ICE=force";
       xlog("L_INFO","$var(prefix) uac is ws uas is not\n");
     } else if (!isflagset(uac_ws) && isbflagset(uas_ws)) {
-      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection "+
+			      "replace-origin ICE=remove";
       xlog("L_INFO","$var(prefix) uas is ws uac is not\n");
     } else if (!isflagset(uac_ws) && !isbflagset(uas_ws)) {
-      $var(rtpengine_flags) = "RTP/AVP replace-session-connection replace-origin ICE=remove";
+      $var(rtpengine_flags) = "RTP/AVP replace-session-connection "+
+			      "replace-origin ICE=remove";
       xlog("L_INFO","$var(prefix) neither uac or uas are websocket\n");
     }
 
     # set the ip version address family
     if ( isbflagset(upstream_request) ) {
-      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uas_ipv);
+      $var(rtpengine_flags)=$var(rtpengine_flags) +
+			    " address-family=" + $dlg_val(uas_ipv);
       resetbflag(upstream_request);
     } else {
-      $var(rtpengine_flags)=$var(rtpengine_flags) + " address-family=" + $dlg_val(uac_ipv);
+      $var(rtpengine_flags)=$var(rtpengine_flags) +
+			    " address-family=" + $dlg_val(uac_ipv);
     }
 
     if ( $rs=="183" && !isbflagset(sdpoffer) ) {
@@ -597,7 +619,8 @@ onreply_route["reply"] {
 
   # fix contact for uas behind nat
   if (isbflagset(uasnat)) {
-    xlog("L_INFO","$var(prefix) uas behind nat (previously detected), fixing contact\n");
+    xlog("L_INFO","$var(prefix) uas behind nat (previously detected), "
+		  "fixing contact\n");
     fix_nated_contact();
   }
   else if (nat_uac_test("1")) {
@@ -646,7 +669,13 @@ route["outbound_translations"] {
 
   $var(log_query)=0;
   if($var(log_query)){
-    xlog("L_INFO","$var(prefix) select tran_strip, tran_prefix, tran_user, tran_domain, tran_port, tran_add_header,tran_strip_port from translations where (from_username='$fU' or from_username IS NULL) and from_domain='$fd' and (match_user_agent like '$ua%' or match_user_agent IS NULL )  and ('$rU' regexp match_regex or match_regex IS NULL) order by tran_priority limit 1\n");
+    xlog("L_INFO","$var(prefix) select tran_strip, tran_prefix, tran_user, "
+		  "tran_domain, tran_port, tran_add_header,tran_strip_port "
+		  "from translations where (from_username='$fU' or "
+	      	  "from_username IS NULL) and from_domain='$fd' and "
+	          "(match_user_agent like '$ua%' or match_user_agent IS NULL ) "
+		  "and ('$rU' regexp match_regex or match_regex IS NULL) "
+                  "order by tran_priority limit 1\n");
   }
 
   # outbound routing translations
@@ -684,7 +713,11 @@ route["outbound_translations"] {
       append_hf("$avp(tran_add_header)\r\n");
     }
 
-    xlog("L_INFO","$var(prefix) tran_strip=$avp(tran_strip) tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) tran_domain=$avp(tran_domain) tran_port=$avp(tran_port) tran_strip_port=$avp(tran_strip_port) tran_add_header=$avp(tran_add_header)\n");
+    xlog("L_INFO","$var(prefix) tran_strip=$avp(tran_strip) "
+		  "tran_prefix=$avp(tran_prefix) tran_user=$avp(tran_user) "
+		  "tran_domain=$avp(tran_domain) tran_port=$avp(tran_port) "
+		  "tran_strip_port=$avp(tran_strip_port) "
+		  "tran_add_header=$avp(tran_add_header)\n");
     xlog("L_INFO","$var(prefix) post translation RURI=$ru\n");
   }
 }

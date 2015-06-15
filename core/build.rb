@@ -2,7 +2,7 @@
 require 'erb'
 require './opensips.var.rb'
 
-template = ERB.new(File.read('./opensips.cfg.erb'))
+template = ERB.new(File.read('./opensips.cfg.erb'), nil, '-')
 
 outfile = File.new('opensips.cfg', 'w');
 

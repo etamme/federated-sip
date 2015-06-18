@@ -52,10 +52,18 @@ mpath="<%= module_path %>"
 user=<%= user %>
 group=<%= group %>
 
-loadmodule "proto_tcp.so"
+<%-if enable_udp-%>
 loadmodule "proto_udp.so"
-<%-if enable_tls-%>loadmodule "proto_tls.so"<%-end-%>
+<%-end-%>
+<%-if enable_tcp-%>
+loadmodule "proto_tcp.so"
+<%-end-%>
+<%-if enable_tls-%>
+loadmodule "proto_tls.so"
+<%-end-%>
+<%-if enable_ws-%>
 loadmodule "proto_ws.so"
+<%-end-%>
 loadmodule "signaling.so"
 loadmodule "sl.so"
 loadmodule "tm.so"

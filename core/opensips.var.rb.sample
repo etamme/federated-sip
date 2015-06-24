@@ -1,29 +1,32 @@
-$erb_context = binding
-debug_level = '3'
-enable_ipv6 = true
-enable_tls = true
+$erb_context	= binding
+debug_level	= '3'
+enable_udp	= true
+enable_tcp	= true
+enable_tls	= true
+enable_ws	= true
+enable_ipv6	= true
 
-log_facility = 'LOG_LOCAL2'
-listen_ip = 'xxx.xxx.xxx.xxx'
-listen_ipv6 = 'xxxx:xxxx:xxxx:xxxx:xxxx:xxxxx:xxxx'
-listen_port = '5060'
+log_facility	= 'LOG_LOCAL2'
+listen_ip	= 'xxx.xxx.xxx.xxx'
+listen_ipv6	= 'xxxx:xxxx:xxxx:xxxx:xxxx:xxxxx:xxxx'
+listen_port	= '5060'
 tls_listen_port = '5061'
-ws_listen_port = '8080'
-db_url='sqlite://var/db/opensips'
+ws_listen_port	= '8080'
+db_url		='sqlite://var/db/opensips'
 
-module_path = '/usr/local/lib64/opensips/modules/'
+module_path	= '/usr/local/lib64/opensips/modules/'
 
-user = 'opensips'
-group = 'opensips'
+user		= 'opensips'
+group		= 'opensips'
 
-use_enum = '0'
+use_enum	= '0'
 
 # We set db_url then reference it for all other db_urls
 # since they share a common db.  You can set them individually.
-group_db_url=db_url
-alias_db_url=db_url
-auth_db_url=db_url
-avp_db_url=db_url
-dialog_db_url=db_url
-usrloc_db_url=db_url
-domain_db_url=db_url
+group_db_url	= db_url
+alias_db_url	= db_url
+auth_db_url	= db_url
+avp_db_url	= db_url
+dialog_db_url	= db_url
+usrloc_db_url	= db_url
+domain_db_url	= db_url

@@ -12,19 +12,31 @@ log_stderror=no
 log_facility=<%= log_facility %>
 
 # network settings
+<%-if enable_udp-%>
 listen=udp:<%= listen_ip %>:<%= listen_port %>
+<%-end-%>
+<%-if enable_tcp-%>
 listen=tcp:<%= listen_ip %>:<%= listen_port %>
+<%-end-%>
 <%-if enable_tls-%>
 listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
 <%-end-%>
+<%-if enable_ws-%>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
+<%-end-%>
 <%-if enable_ipv6-%>
+<%-if enable_udp-%>
 listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
+<%-end-%>
+<%-if enable_tcp-%>
 listen=tcp:[<%= listen_ipv6 %>]:<%= listen_port%>
+<%-end-%>
 <%-if enable_tls-%>
 listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
 <%-end-%>
+<%-if enable_ws-%>
 listen=ws:[<%= listen_ipv6 %>]:<%= ws_listen_port %>
+<%-end-%>
 
 dns_try_ipv6 = 1
 <%-end-%>
@@ -40,10 +52,18 @@ mpath="<%= module_path %>"
 user=<%= user %>
 group=<%= group %>
 
-loadmodule "proto_tcp.so"
+<%-if enable_udp-%>
 loadmodule "proto_udp.so"
-<%-if enable_tls-%>loadmodule "proto_tls.so"<%-end-%>
+<%-end-%>
+<%-if enable_tcp-%>
+loadmodule "proto_tcp.so"
+<%-end-%>
+<%-if enable_tls-%>
+loadmodule "proto_tls.so"
+<%-end-%>
+<%-if enable_ws-%>
 loadmodule "proto_ws.so"
+<%-end-%>
 loadmodule "signaling.so"
 loadmodule "sl.so"
 loadmodule "tm.so"

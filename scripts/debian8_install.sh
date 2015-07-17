@@ -3,7 +3,7 @@
 # get some basica vars for later
 DIR=$(pwd)
 IP=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
-NUM=$(( ( RANDOM % 10 )  + 1 ))
+NUM=$(( ( RANDOM % 100 )  + 1 ))
 DOMAIN="proxy$NUM.uphreak.com"
 
 # update package lists
@@ -43,6 +43,7 @@ sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' /usr/local/opensips/etc/opensip
 sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/opensips\/opensips/g' /usr/local/opensips/etc/opensips/opensipsctlrc
 
 # add our ip to our domain table
+/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:5060
 /usr/local/opensips/sbin/opensipsctl domain add $DOMAIN
 
 # build rtpengine daemon

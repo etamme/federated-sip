@@ -2,7 +2,7 @@
 # get some basica vars for later
 BASE=$(pwd)
 IP=$(ifconfig eth0 | awk '/inet /{print substr($2,1)}')
-NUM=$(( ( RANDOM % 10 )  + 1 ))
+NUM=$(( ( RANDOM % 100 )  + 1 ))
 DOMAIN="proxy$NUM.uphreak.com"
 # add opensips user with no shell
 useradd -s /bin/false opensips

@@ -17,7 +17,7 @@ cd opensips
 cp Makefile.conf.template Makefile.conf
 sed -i -e 's/include_modules?=/include_modules?= db_sqlite/g' Makefile.conf 
 sed -i -e 's/PREFIX=\/usr\/local\//PREFIX=\/usr\/local\/opensips\//g' Makefile.conf
-#make all && make all install
+make all && make all install
 # set up our sqlite database
 cd scripts/sqlite
 mkdir /var/db/opensips && chown opensips:opensips /var/db/opensips

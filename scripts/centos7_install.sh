@@ -56,7 +56,7 @@ sed -i -e "s/listen_ip       = 'xxx.xxx.xxx.xxx'/listen_ip      = '$IP'/g" opens
 sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensips/modules/#g' opensips.var.rb
 ./build.rb && cp opensips.cfg /usr/local/opensips/etc/opensips/opensips.cfg
 cd /usr/local/opensips && sbin/opensips &
-sbin/opensipsctl add "user$NUM@$domain" "ilikeopensips$NUM"
+sbin/opensipsctl add "user$NUM@$DOMAIN" "ilikeopensips$NUM"
 echo ""
 echo ""
 echo "AOR     : user$NUM@$domain"

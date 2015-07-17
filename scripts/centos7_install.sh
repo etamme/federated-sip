@@ -5,7 +5,7 @@ IP=$(ifconfig eth0 | awk '/inet /{print substr($2,1)}')
 # add opensips user with no shell
 useradd -s /bin/false opensips
 # install required deps and build tools
-yum -y install vim-enhanced libcurl-devel ncurses-devel  glib2 glib2-devel xmlrpc-c-devel xmlrpc-c sqlite sqlite-devel pcre pcre-devel openssl openssl-devel
+yum -y install vim-enhanced libcurl-devel ncurses-devel ruby glib2 glib2-devel xmlrpc-c-devel xmlrpc-c sqlite sqlite-devel pcre pcre-devel openssl openssl-devel
 yum -y group install "Development Tools"
 # clone required repos
 cd /usr/local/src
@@ -36,3 +36,16 @@ cd /usr/local/src/rtpengine/daemon && make
 mkdir /usr/local/rtpengine && cp rtpengine /usr/local/rtpengine/
 # start rtpengine
 /usr/local/rtpengine/rtpengine -p /var/run/rtpengine.pid --interface $IP --listen-ng $IP:60000 -m 50000 -M 55000 -E -L 3 &
+# build sqlite pcre extension
+cd /usr/local/src/sqlite3-pcre
+make && make install
+# configure federated opensips.var.rb
+cd $PWD/core
+cp opensips.var.rb.sample opensips.var.rb
+# disable tls and ipv6
+sed -i -e 's/enable_tls      = true/enable_tls      = false/g' opensips.var.rb
+sed -i -e 's/enable_ipv6      = true/enable_ipv6      = false/g' opensips.var.rb
+# set our listening IP address
+sed -i -e "s/listen_ip       = 'xxx.xxx.xxx.xxx'/listen_ip       = '$IP'/g" opensips.var.rb
+# set our modules directory
+sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensips/modules/#g' opensips.var.rb

@@ -36,6 +36,7 @@ sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/
 # add our ip to our domain table
 /usr/local/opensips/sbin/opensipsctl domain add $IP:5060
 /usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:5060
+/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN
 # build rtpengine daemon
 cd /usr/local/src/rtpengine/daemon && make
 mkdir /usr/local/rtpengine && cp rtpengine /usr/local/rtpengine/
@@ -56,9 +57,11 @@ sed -i -e "s/listen_ip       = 'xxx.xxx.xxx.xxx'/listen_ip      = '$IP'/g" opens
 sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensips/modules/#g' opensips.var.rb
 ./build.rb && cp opensips.cfg /usr/local/opensips/etc/opensips/opensips.cfg
 cd /usr/local/opensips && sbin/opensips &
-sbin/opensipsctl add "user$NUM@$DOMAIN" "ilikeopensips$NUM"
+sbin/opensipsctl add user$NUM@$DOMAIN ilikeopensips$NUM
+sleep 5;
 echo ""
 echo ""
-echo "AOR     : user$NUM@$domain"
+echo ""
+echo "AOR     : user$NUM@$DOMAIN"
 echo "PASSWORD: ilikeopensips$NUM"
 echo "PROXY   : $IP"

@@ -180,7 +180,7 @@ modparam("proto_tls", "ca_list",
 # avps
 # ------------
 # uac_nat - transactional avp for detecting UAC behind nat on response
-# attr    - set on before userlocation save, and restored on lookup
+# attr    - set before userlocation save, and restored on lookup
 
 # main routes
 # -----------
@@ -195,7 +195,7 @@ modparam("proto_tls", "ca_list",
 # route["to_e164"]               - special processing for e164
 # route["enum_query"]            - does enum lookup if enabled
 # route["outbound_translations"] - look up and apply translations
-# route["to_local_domain"]       - user location lookup and relaying
+# route["to_local_domain"]       - user location lookup and processing
 # route["challenge_request"]     - consolidated digest auth route
 
 # main request routing logic

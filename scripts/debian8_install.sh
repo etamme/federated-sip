@@ -6,12 +6,14 @@ IP=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
 NUM=$(( ( RANDOM % 1000 )  + 1 ))
 
 # get optional domain and user from user input
-read DOMAIN "Enter your domain name, or press enter for a randomly generated subdomain"
+echo "Enter your domain name, or press enter for a randomly generated subdomain"
+read DOMAIN
 if [ -z "$DOMAIN" ]
 then
   DOMAIN="proxy$NUM.uphreak.com"
 fi
-read USER "Enter a user name, or press enter for a randomly generated user"
+echo "Enter a user name, or press enter for a randomly generated user"
+read USER
 if [ -z "$USER" ]
 then
   USER="user$NUM"

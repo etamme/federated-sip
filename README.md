@@ -1,8 +1,11 @@
 Federated SIP server
+====================
 
 The Federated SIP project is a set of scripts designed to run OpenSIPS + rtpengine in a way that will provide federated, open communication with any other SIP server on the internet.
 
-Federated SIP provides the following:
+Federated SIP Feautres
+----------------------
+
 - SIP registrar with multiple domain support, including authenticated and unauthenticated users.
 - Complete server side NAT handling for clients behind NAT.
 - Federated SIP proxy server that follows RFC3263 for locating SIP servers.

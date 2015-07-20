@@ -2,6 +2,12 @@
 
 # get some basic vars for later
 DIR=$(pwd)
+if [[ $DIR == *scripts ]]
+then
+  echo "going up to project root directory"
+  cd ..
+  DIR=$(pwd)
+fi
 IP=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
 NUM=$(( ( RANDOM % 1000 )  + 1 ))
 
@@ -23,7 +29,7 @@ fi
 apt-get update
 
 # install required dependencies and build tools
-apt-get install -y build-essential bison flex pkgconf ruby libpcre3-dev libsqlite3-dev libncurses5-dev sqlite3 libglib2.0-dev libssl-dev libxml2-dev libxmlrpc-core-c3-dev libcurl4-openssl-dev
+apt-get install -y build-essential bison flex pkgconf ruby libpcre3-dev libsqlite3-dev libncurses5-dev sqlite3 libglib2.0-dev libssl-dev libxml2-dev libxmlrpc-core-c3-dev libcurl4-openssl-dev tcpdump
 
 # add opensips user with no shell
 useradd -s /bin/false opensips
@@ -96,7 +102,7 @@ sleep 5
 echo ""
 echo ""
 echo ""
-echo "AOR     : user$NUM@$DOMAIN"
+echo "AOR     : $USER@$DOMAIN"
 echo "PASSWORD: ilikeopensips$NUM"
 echo "PROXY   : $IP"
 

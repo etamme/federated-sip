@@ -1,6 +1,12 @@
 #!/bin/bash
-# get some basica vars for later
+# get some basic vars for later
 DIR=$(pwd)
+if [[ $DIR == *scripts ]]
+then
+  echo "going up to project root directory"
+  cd ..
+  DIR=$(pwd)
+fi
 IP=$(ifconfig eth0 | awk '/inet /{print substr($2,1)}')
 NUM=$(( ( RANDOM % 1000 )  + 1 ))
 
@@ -22,7 +28,7 @@ fi
 useradd -s /bin/false opensips
 
 # install required deps and build tools
-yum -y install vim-enhanced libcurl-devel ncurses-devel ruby glib2 glib2-devel xmlrpc-c-devel xmlrpc-c sqlite sqlite-devel pcre pcre-devel openssl openssl-devel
+yum -y install vim-enhanced libcurl-devel ncurses-devel ruby glib2 glib2-devel xmlrpc-c-devel xmlrpc-c sqlite sqlite-devel pcre pcre-devel openssl openssl-devel tcpdump
 yum -y group install "Development Tools"
 
 # clone required repos
@@ -97,6 +103,6 @@ sleep 5;
 echo ""
 echo ""
 echo ""
-echo "AOR     : user$NUM@$DOMAIN"
+echo "AOR     : $USER@$DOMAIN"
 echo "PASSWORD: ilikeopensips$NUM"
 echo "PROXY   : $IP"

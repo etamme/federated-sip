@@ -123,7 +123,7 @@ modparam("usrloc", "db_url", "<%= usrloc_db_url %>")
 # when a UAC sends nated register set a branch flag before saving.
 # when lookup is called, usrloc will restore the branch flag and let us
 # detect a nated "callee" or UAS
-modparam("usrloc", "nat_bflag","uasnat")
+modparam("usrloc", "nat_bflag","uas_nat")
 # use the domain portion to match users - not just the user portion
 modparam("usrloc", "use_domain",1)
 
@@ -172,21 +172,31 @@ modparam("proto_tls", "ca_list",
 
 # branch flags
 # ------------
-# uasnat - UAS behind nat
-# uas_ws - UAS is a websockets client
+# uas_nat          - UAS behind nat
+# uas_ws           - UAS is a websockets client
+# upstream_request - Set if the UAC/UAS have reversed from their initial roles
+# sdp_offer        - Set if we have made an offer, for 183/PRACK offer/answer
 
 # avps
 # ------------
-# uacnat - transactional avp for detecting UAC behind nat on response
-# attr   - set on before userlocation save, and restored on lookup
+# uac_nat - transactional avp for detecting UAC behind nat on response
+# attr    - set on before userlocation save, and restored on lookup
 
-# routes
-# ------
-# route                        - general request processing
-# route["initial_requests"]    - initial request route processing
-# route["sequential_requests"] - sequential request route processing
-# branch_route["rtpengine"]    - processing for rtpengine flags per branch
-# onreply_route["reply"]       - reply processing for nat and rtpengine flags
+# main routes
+# -----------
+# route                          - general request processing
+# route["initial_requests"]      - initial request route processing
+# route["sequential_requests"]   - sequential request route processing
+# branch_route["rtpengine"]      - processing for rtpengine flags per branch
+# onreply_route["reply"]         - reply processing for nat and rtpengine flags
+# 
+# helper routes
+# -------------
+# route["to_e164"]               - special processing for e164
+# route["enum_query"]            - does enum lookup if enabled
+# route["outbound_translations"] - look up and apply translations
+# route["to_local_domain"]       - user location lookup and relaying
+# route["challenge_request"]     - consolidated digest auth route
 
 # main request routing logic
 route{
@@ -201,7 +211,7 @@ route{
 
   # check to see if the src ip is flooding us and drop requests accordingly
   if ( src_ip != myself && !pike_check_req() ) { exit; }
-  # if the packet contains sipviscious or freindly-scanner drop it
+  # check packet for signs that it came from a scanner
   if( $ua=~"^sipvicious"       ||
       $ua=~"^freindly-scanner" ||
       $ua=~"^VaxSip"           ||
@@ -239,7 +249,7 @@ route{
   }
 
   # setup avp for detecting uac behind a nat in the response
-  $avp(uacnat)=0;
+  $avp(uac_nat)=0;
 
   # UAC nat detection
   #
@@ -255,7 +265,7 @@ route{
     # append recieved and port to first via so we can route responses back
     force_rport();
     # set a transactional avp letting us know that the uac is behind a nat
-    $avp(uacnat)=1;
+    $avp(uac_nat)=1;
     if (is_method("REGISTER")) {
       fix_nated_register();
     } else {
@@ -295,9 +305,9 @@ route{
 route["initial_requests"] {
   $var(prefix)="route[initial_requests]   : "+
 		$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
-
+  # log requests, but skip REGISTER and OPTIONS so we dont flood the log
   if(!is_method("REGISTER|OPTIONS")){
-    xlog("L_INFO","$var(prefix) received initial request to $ru\n");
+    xlog("L_INFO","$var(prefix) received initial request to $ru from $fu\n");
   }
   # preloaded route checking
   if (loose_route() && !is_method("ACK|CANCEL")) {
@@ -322,16 +332,16 @@ route["initial_requests"] {
     setflag(uac_ws);
   }
 
-  # handle registrations
+  # registration processing
   if (is_method("REGISTER")) {
     # authenticate the REGISTER requests
     if (is_from_local("$var(attrs)")) {
        if($var(attrs)=="noauth")
-         $avp(unauthorized)=1;
+         $avp(unauthenticated)=1;
     }
 
-    # do not challenge domains that are "unauthorized"
-    if($avp(unauthorized)==0){
+    # do not challenge domains that are "unauthenticated"
+    if($avp(unauthenticated)==0){
       if (!www_authorize("", "subscriber")) {
         www_challenge("", "0");
         exit;
@@ -349,8 +359,8 @@ route["initial_requests"] {
     # on a call to lookup, allowing us to detect a NAT'd UAS or "callee" in
     # a branch route, or onreply route.  In any "main route" the bflag will be
     # for the first branch if there is more than one.
-    if ($avp(uacnat)==1) {
-      setbflag(uasnat);
+    if ($avp(uac_nat)==1) {
+      setbflag(uas_nat);
     }
     # If the client is using websocket (webrtc) and save the attribute for
     # detection later on location lookup
@@ -367,6 +377,9 @@ route["initial_requests"] {
 
     # comment out registration saving to reduce logs
     # xlog("L_INFO","$var(prefix) saving registration for $tu\n");
+    # save flags:
+    # p0 - path support
+    # v  - path received parameter support
     if (!save("location","p0v")) {
       sl_reply_error();
     }
@@ -396,44 +409,17 @@ route["initial_requests"] {
   }
   xlog("L_INFO","$var(prefix) fU=$fU fd=$fd rU=$rU\n");
 
-  # Initial INVITE processing
-  #
-  # We authenticate the user for any INVITE that is to an external domain
-  # what does this mean of calling?
-  #
-  # PSTN
-  #   This proxy has no "built in" pstn termination.  We only standardize
-  #   numbers to e.164 format from there we will do ENUM lookups on e.164.arpa
-  #   e.164.org.  Either of those look ups could succeed and change the RURI to
-  #   be an external domain, at which point we will challenge the request user
-  #   to authenticate that they are a user of this proxy.  If a user wants to
-  #   terminate calls to the pstn, they must add translations to a carrier.
-  #
-  # TRANSLATIONS
-  #   All initial INVITE requests will have alias mapping, and then translations
-  #   applied. If a user wants to send calls to a SIP carrier for termination,
-  #   they must add a translation that will match the request user portion of
-  #   the RURI, then apply an appropriate strip/prefix/translation domain for
-  #   the carrier. Be aware that if a e.164 number is detected without the +
-  #   prefix, the + will be appended AUTOMATICALLY before translation lookup.
-  #
-  # SIP
-  #   We only openly accept un-authenticated INVITE requests to this proxy with
-  #   a domain that we service AKA we are the last hop to a subscriber.  This is
-  #   determined by the domains stored in the domain table and will be checked
-  #   by is_host_uri_local()
-  #
-  # PROCESS
-  #   Look up any alias, then apply any matching  translation.  If at this point
-  #   the domain is external, authenticate.  if the domain is local, we can
-  #   proceed to doing a user location lookup, and pass the call.
-
+  # Initial request processing for: INVITE, MESSAGE, NOTIFY
   if (method=="INVITE" || method=="MESSAGE" || method=="NOTIFY") {
 
-    #  translations are standardized on e164 so fix any leading + formatting
+    #  translations are standardized on e164 so we check if the request matches
+    #  an e164 pattern and apply any missing prefixes
     $var(is_e164) = route("to_e164");
 
-    #  translate request user@domain:port based on database rules
+    #  lookup and apply any outbound translations
+    #
+    #  this is where you would add translations to send e164 requests to a
+    #  carrier, or add aliases for things like extensions
     route("outbound_translations");
 
     #  if this is an e164 user portion, do an enum lookup if use_enum is enabled
@@ -441,7 +427,7 @@ route["initial_requests"] {
       route("enum_query");
     }
 
-    #  ok we have done aliasing, translations, and ENUM lookup
+    #  we have done aliasing, translations, and ENUM lookup
     #  now check to see what the domain is
     if (is_uri_host_local()) {
       route("to_local_domain");
@@ -482,7 +468,7 @@ route["sequential_requests"] {
   # to indicate that for the remainder of the transaction
   if (subst_uri('/(sip:.*);nat=yes/\1/')) {
     xlog("L_INFO","$var(prefix) uas is behind a nat (previously detected)\n");
-    setbflag(uasnat);
+    setbflag(uas_nat);
   }
 
   # set the route for processing branches
@@ -523,7 +509,7 @@ branch_route[rtpengine] {
   $var(prefix)="branch[" + $T_branch_idx + "]                 : "+
 		$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
 
-  resetbflag(sdpoffer);
+  resetbflag(sdp_offer);
 
   xlog("L_INFO","$var(prefix) message flags: $mf\n");
   xlog("L_INFO","$var(prefix) branch flags: $bf\n");
@@ -577,7 +563,7 @@ branch_route[rtpengine] {
     } else {
       xlog("L_INFO","$var(prefix) rtpengine offer $var(rtpengine_flags)\n");
       rtpengine_offer("$var(rtpengine_flags)");
-      setbflag(sdpoffer);
+      setbflag(sdp_offer);
     }
   }
 }
@@ -628,7 +614,7 @@ onreply_route["reply"] {
 			    " address-family=" + $dlg_val(uac_ipv);
     }
 
-    if ( $rs=="183" && !isbflagset(sdpoffer) ) {
+    if ( $rs=="183" && !isbflagset(sdp_offer) ) {
       xlog("L_INFO","$var(prefix) rtpengine offer $var(rtpengine_flags)\n");
       rtpengine_offer("$var(rtpengine_flags)");
     } else if ( $rs=="200" || $rs=="183") {
@@ -638,7 +624,7 @@ onreply_route["reply"] {
   }
 
   # fix contact for uas behind nat
-  if (isbflagset(uasnat)) {
+  if (isbflagset(uas_nat)) {
     xlog("L_INFO","$var(prefix) uas behind nat (previously detected), "
 		  "fixing contact\n");
     fix_nated_contact();
@@ -756,7 +742,7 @@ route["to_local_domain"] {
 }
 
 route["challenge_request"] {
-  if($avp(unauthorized)==0) {
+  if($avp(unauthenticated)==0) {
     if (!proxy_authorize("", "subscriber")) {
       xlog("L_INFO","$var(prefix) challenging request to external domain $rd\n");
       proxy_challenge("", "0");

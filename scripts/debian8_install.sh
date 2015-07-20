@@ -1,10 +1,21 @@
 #!/bin/bash
 
-# get some basica vars for later
+# get some basic vars for later
 DIR=$(pwd)
 IP=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
-NUM=$(( ( RANDOM % 100 )  + 1 ))
-DOMAIN="proxy$NUM.uphreak.com"
+NUM=$(( ( RANDOM % 1000 )  + 1 ))
+
+# get optional domain and user from user input
+read DOMAIN "Enter your domain name, or press enter for a randomly generated subdomain"
+if [ -z "$DOMAIN" ]
+then
+  DOMAIN="proxy$NUM.uphreak.com"
+fi
+read USER "Enter a user name, or press enter for a randomly generated user"
+if [ -z "$USER" ]
+then
+  USER="user$NUM"
+fi
 
 # update package lists
 apt-get update
@@ -69,9 +80,18 @@ sed -i -e "s/listen_ip       = 'xxx.xxx.xxx.xxx'/listen_ip       = '$IP'/g" open
 # set our modules directory
 sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensips/modules/#g' opensips.var.rb
 
+# build the config
 ./build.rb && cp opensips.cfg /usr/local/opensips/etc/opensips/opensips.cfg
+
+# start opensips
 cd /usr/local/opensips && sbin/opensips
-sbin/opensipsctl add "user$NUM@$DOMAIN" "ilikeopensips$NUM"
+
+# add a subscriber
+sbin/opensipsctl add $USER@$DOMAIN ilikeopensips$NUM
+
+# sleep to get nicer output then print info
+sleep 5
+echo ""
 echo ""
 echo ""
 echo "AOR     : user$NUM@$DOMAIN"

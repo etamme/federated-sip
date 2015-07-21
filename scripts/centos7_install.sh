@@ -93,7 +93,7 @@ sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensi
 ./build.rb && cp opensips.cfg /usr/local/opensips/etc/opensips/opensips.cfg
 
 # start opensips
-cd /usr/local/opensips && sbin/opensips &
+cd /usr/local/opensips && sbin/opensips
 
 # add a subscriber
 sbin/opensipsctl add "$USER@$DOMAIN" "ilikeopensips$NUM"

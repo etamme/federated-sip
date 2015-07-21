@@ -334,10 +334,17 @@ route["initial_requests"] {
 
   # registration processing
   if (is_method("REGISTER")) {
-    # authenticate the REGISTER requests
+    # initialize the unauthenticated AVP so by default we auth
+    $avp(unauthenticated)=0;
+
+    # get attributes from the domain (if it is local)
     if (is_from_local("$var(attrs)")) {
        if($var(attrs)=="noauth")
          $avp(unauthenticated)=1;
+    } else {
+       xlog("L_INFO","$var(prefix) attempt to register non local domain\n");
+      sl_send_reply("603","Decline - unknown domain");
+      exit;
     }
 
     # do not challenge domains that are "unauthenticated"

@@ -95,7 +95,7 @@ sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensi
 cd /usr/local/opensips && sbin/opensips
 
 # add a subscriber
-sbin/opensipsctl add $USER@$DOMAIN ilikeopensips$NUM
+sbin/opensipsctl add "$USER@$DOMAIN" "ilikeopensips$NUM"
 
 # sleep to get nicer output then print info
 sleep 5

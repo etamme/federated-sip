@@ -10,6 +10,8 @@ EnvironmentFile=-/etc/sysconfig/opensips
 PIDFile=/var/run/opensips/opensips.pid
 ExecStart=/usr/sbin/opensips -P /var/run/opensips/opensips.pid -f /etc/opensips/opensips.cfg $OPTIONS
 
+Restart=always
+
 [Install]
 WantedBy=multi-user.target
 

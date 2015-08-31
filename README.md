@@ -10,6 +10,8 @@ Federated SIP Features
 - Complete server side NAT handling for clients behind NAT.
 - Federated SIP proxy server that follows RFC3263 for locating SIP servers.
 - WebSocket, TCP, TLS, and UDP connectivity on IPV4 or IPV6.
-- Media interop between DTLS-SRTP, SRTP and RTP, as well as bridging between IPV4 and IPV6.
+- Media interop between DTLS-SRTP, SRTP and RTP
 - Powerful regular expression based outbound translations for dynamic routing.
 - Centos and Debian system set up scripts to turn a bare OS install into a full SIP system in a matter of minutes.
+
+Checkout [KwickyKonf](https://github.com/etamme/kwickykonf).  Together with Federate-SIP they make a fast and light WebRTC video chat.

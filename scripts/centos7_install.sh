@@ -54,7 +54,7 @@ sudo -u opensips sqlite3 /var/db/opensips/opensips < domain-create.sql
 sudo -u opensips sqlite3 /var/db/opensips/opensips < auth_db-create.sql
 sudo -u opensips sqlite3 /var/db/opensips/opensips < usrloc-create.sql
 sudo -u opensips sqlite3 /var/db/opensips/opensips < $DIR/scripts/create_translations_table.sqlite
-sudo -u opensips sqlite3 /var/db/opensips/opensips "insert into translations (from_domain,match_regex,tran_domain) values ('$DOMAIN','^\+18[045678]{2}[0-9]{7}$','tf.arctele.com');"
+sudo -u opensips sqlite3 /var/db/opensips/opensips "insert into translations (from_domain,match_regex,tran_domain, tran_strip) values ('$DOMAIN','^\+18[045678]{2}[0-9]{7}$','tf.arctele.com',1);"
 
 # set up opensipsctlrc to use our sqlite database
 sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' /usr/local/opensips/etc/opensips/opensipsctlrc

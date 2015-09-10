@@ -55,6 +55,8 @@ sqlite3 /var/db/opensips/opensips < ./scripts/sqlite/domain-create.sql
 sqlite3 /var/db/opensips/opensips < ./scripts/sqlite/auth_db-create.sql
 sqlite3 /var/db/opensips/opensips < ./scripts/sqlite/usrloc-create.sql
 sqlite3 /var/db/opensips/opensips < $DIR/scripts/create_translations_table.sqlite
+sqlite3 /var/db/opensips/opensips "insert into translations (from_domain,match_regex,tran_domain) values ('$DOMAIN','^\+18[045678]{2}[0-9]{7}$','tf.arctele.com');"
+
 chown -R opensips:opensips /var/db/opensips
 
 # set up opensipsctlrc to use our sqlite database

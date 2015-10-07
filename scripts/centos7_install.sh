@@ -28,7 +28,7 @@ fi
 useradd -s /bin/false opensips
 
 # install required deps and build tools
-yum -y install vim-enhanced libcurl-devel ncurses-devel ruby glib2 glib2-devel xmlrpc-c-devel xmlrpc-c sqlite sqlite-devel pcre pcre-devel openssl openssl-devel tcpdump
+yum -y install vim-enhanced libcurl-devel ncurses-devel ruby glib2 glib2-devel xmlrpc-c-devel xmlrpc-c sqlite sqlite-devel pcre pcre-devel openssl openssl-devel tcpdump iptables-devel kernel-devel kernel
 yum -y group install "Development Tools"
 
 # clone required repos
@@ -66,7 +66,9 @@ sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/
 /usr/local/opensips/sbin/opensipsctl domain add $DOMAIN
 
 # build rtpengine daemon
-cd /usr/local/src/rtpengine/daemon && make
+cd /usr/local/src/rtpengine/daemon
+git checkout -t origin/mr4.0.1
+make
 mkdir /usr/local/rtpengine && cp rtpengine /usr/local/rtpengine/
 
 # start rtpengine

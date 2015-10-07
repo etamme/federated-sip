@@ -14,4 +14,8 @@ Federated SIP Features
 - Powerful regular expression based outbound translations for dynamic routing.
 - Centos and Debian system set up scripts to turn a bare OS install into a full SIP system in a matter of minutes.
 
-Checkout [KwickyKonf](https://github.com/etamme/kwickykonf).  Together with Federate-SIP they make a fast and light WebRTC video chat.
+Checkout KwikyKonf:
+* [code](https://github.com/etamme/kwickykonf)
+* [demo](http://video.uphreak.com/#github)
+
+Together with Federate-SIP they make a fast and light WebRTC video chat.

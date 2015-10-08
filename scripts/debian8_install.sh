@@ -29,7 +29,7 @@ fi
 apt-get update
 
 # install required dependencies and build tools
-apt-get install -y build-essential bison flex pkgconf ruby libpcre3-dev libsqlite3-dev libncurses5-dev sqlite3 libglib2.0-dev libssl-dev libxml2-dev libxmlrpc-core-c3-dev libcurl4-openssl-dev tcpdump
+apt-get install -y build-essential bison flex pkgconf ruby libpcre3-dev libsqlite3-dev libncurses5-dev sqlite3 libglib2.0-dev libssl-dev libxml2-dev libxmlrpc-core-c3-dev libcurl4-openssl-dev tcpdump git libhiredis-dev
 
 # add opensips user with no shell
 useradd -s /bin/false opensips

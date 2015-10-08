@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# http://redsymbol.net/articles/unofficial-bash-strict-mode/
+set -euo pipefail
+
 # get some basic vars for later
 DIR=$(pwd)
 if [[ $DIR == *scripts ]]
@@ -13,6 +16,7 @@ NUM=$(( ( RANDOM % 1000 )  + 1 ))
 
 # get optional domain and user from user input
 echo "Enter your domain name, or press enter for a randomly generated subdomain"
+set +e
 read DOMAIN
 if [ -z "$DOMAIN" ]
 then
@@ -24,6 +28,7 @@ if [ -z "$USER" ]
 then
   USER="user$NUM"
 fi
+set -e
 
 # update package lists
 apt-get update

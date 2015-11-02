@@ -215,8 +215,7 @@ route{
   if( $ua=~"^sipvicious"       ||
       $ua=~"^freindly-scanner" ||
       $ua=~"^VaxSip"           ||
-      $ua=~"^sipcli"           ||
-      $rd=="<%= listen_ip %>")
+      $ua=~"^sipcli"           )
   {
     xlog("L_INFO","$var(prefix) ban scanner $si\n");
     exit; 

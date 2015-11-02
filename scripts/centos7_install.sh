@@ -61,9 +61,14 @@ sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' /usr/local/opensips/etc/opensip
 sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/opensips\/opensips/g' /usr/local/opensips/etc/opensips/opensipsctlrc
 
 # add our ip to our domain table
+/usr/local/opensips/sbin/opensipsctl domain add $IP
 /usr/local/opensips/sbin/opensipsctl domain add $IP:5060
-/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:5060
+/usr/local/opensips/sbin/opensipsctl domain add $IP:8080
 /usr/local/opensips/sbin/opensipsctl domain add $DOMAIN
+/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:5060
+/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:8080
+# make all our domains unauthenticated
+sudo -u opensips sqlite3 /var/db/opensips/opensips "update domain set attrs='noauth';"
 
 # build rtpengine daemon
 cd /usr/local/src/rtpengine/daemon

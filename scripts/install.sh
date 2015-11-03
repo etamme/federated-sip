@@ -104,15 +104,15 @@ make all && make all install
 
 # set up our sqlite database
 cd scripts/sqlite
-mkdir /var/db/opensips && chown opensips:opensips /var/db/opensips
+mkdir -p /var/db/opensips && chown opensips:opensips /var/db/opensips
 chown -R opensips:opensips /var/db/opensips
-sudo -u opensips sqlite3 /var/db/opensips/opensips < standard-create.sql
-sudo -u opensips sqlite3 /var/db/opensips/opensips < dialog-create.sql
-sudo -u opensips sqlite3 /var/db/opensips/opensips < domain-create.sql
-sudo -u opensips sqlite3 /var/db/opensips/opensips < auth_db-create.sql
-sudo -u opensips sqlite3 /var/db/opensips/opensips < usrloc-create.sql
-sudo -u opensips sqlite3 /var/db/opensips/opensips < $DIR/scripts/create_translations_table.sqlite
-sudo -u opensips sqlite3 /var/db/opensips/opensips "insert into translations (from_domain,match_regex,tran_domain, tran_strip) values ('$DOMAIN','^\+18[045678]{2}[0-9]{7}$','tf.arctele.com',1);"
+sqlite3 /var/db/opensips/opensips < standard-create.sql
+sqlite3 /var/db/opensips/opensips < dialog-create.sql
+sqlite3 /var/db/opensips/opensips < domain-create.sql
+sqlite3 /var/db/opensips/opensips < auth_db-create.sql
+sqlite3 /var/db/opensips/opensips < usrloc-create.sql
+sqlite3 /var/db/opensips/opensips < $DIR/scripts/create_translations_table.sqlite
+sqlite3 /var/db/opensips/opensips "insert into translations (from_domain,match_regex,tran_domain, tran_strip) values ('$DOMAIN','^\+18[045678]{2}[0-9]{7}$','tf.arctele.com',1);"
 
 # set up opensipsctlrc to use our sqlite database
 sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' /usr/local/opensips/etc/opensips/opensipsctlrc
@@ -129,7 +129,7 @@ sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/
 if [ "$NOAUTH" == "true" ]
 then
   # make all our domains unauthenticated
-  sudo -u opensips sqlite3 /var/db/opensips/opensips "update domain set attrs='noauth';"
+  sqlite3 /var/db/opensips/opensips "update domain set attrs='noauth';"
 fi
 # build rtpengine daemon
 

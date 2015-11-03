@@ -333,13 +333,13 @@ route["initial_requests"] {
 
   # registration processing
   if (is_method("REGISTER")) {
-    # initialize the unauthenticated AVP so by default we auth
-    $avp(unauthenticated)=0;
+    # initialize the unauthenticated var so by default we auth
+    $var(unauthenticated)=0;
 
     # get attributes from the domain (if it is local)
     if (is_from_local("$var(attrs)")) {
        if($var(attrs)=="noauth")
-         $avp(unauthenticated)=1;
+         $var(unauthenticated)=1;
     } else {
        xlog("L_INFO","$var(prefix) attempt to register non local domain\n");
       sl_send_reply("603","Decline - unknown domain");
@@ -347,7 +347,7 @@ route["initial_requests"] {
     }
 
     # do not challenge domains that are "unauthenticated"
-    if($avp(unauthenticated)==0){
+    if($var(unauthenticated)==0){
       if (!www_authorize("", "subscriber")) {
         www_challenge("", "0");
         exit;
@@ -748,7 +748,7 @@ route["to_local_domain"] {
 }
 
 route["challenge_request"] {
-  if($avp(unauthenticated)==0) {
+  if($var(unauthenticated)==0) {
     if (!proxy_authorize("", "subscriber")) {
       xlog("L_INFO","$var(prefix) challenging request to external domain $rd\n");
       proxy_challenge("", "0");

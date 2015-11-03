@@ -4,6 +4,32 @@
 # iptables module, and kernel module
 USINGKERNEL="false"
 
+function get_ip {
+  if [ "$OS" == "$CENTOS" ] ; then
+    IP=$(ifconfig eth0 | awk '/inet /{print substr($2,1)}')
+  elif  [ "$OS" == "$DEBIAN" ] ; then
+    IP=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
+  fi
+}
+
+
+# sets our OS variable based
+function set_os {
+  if [ -s /etc/system-release ]
+  then
+    OS=$CENTOS
+  elif [ -s /etc/os-release ]
+  then
+    OS=$DEBIAN
+  else
+    echo "OS is not compatible"
+    exit
+  fi
+}
+
+set_os
+get_ip
+
 # STOP
 #--------------------------------------------------------
 PID=$(pidof opensips)
@@ -46,8 +72,6 @@ sleep 1
 
 # START
 #--------------------------------------------------------
-IP=$(ifconfig eth0 | grep 'inet ' | awk '{print $2}')
-
 if [ "$USINGKERNEL" == "true" ]
 then
   echo "loading kernel module"

@@ -1,5 +1,13 @@
 #!/bin/bash
-# get some basic vars for later
+
+INSTALL_KWIKYKONF="true"
+IPV6="false"
+# TLS is not supported by this script
+TLS="false"
+TCP="true"
+WS="true"
+NOAUTH="true"
+
 DIR=$(pwd)
 if [[ $DIR == *scripts ]]
 then
@@ -117,10 +125,14 @@ sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/
 /usr/local/opensips/sbin/opensipsctl domain add $DOMAIN
 /usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:5060
 /usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:8080
-# make all our domains unauthenticated
-sudo -u opensips sqlite3 /var/db/opensips/opensips "update domain set attrs='noauth';"
 
+if [ "$NOAUTH" == "true" ]
+then
+  # make all our domains unauthenticated
+  sudo -u opensips sqlite3 /var/db/opensips/opensips "update domain set attrs='noauth';"
+fi
 # build rtpengine daemon
+
 cd /usr/local/src/rtpengine/daemon
 git checkout -t origin/mr4.0.1
 make
@@ -137,9 +149,17 @@ make && make install
 cd $DIR/core
 cp opensips.var.rb.sample opensips.var.rb
 
-# disable tls and ipv6
-sed -i -e 's/enable_tls      = true/enable_tls      = false/g' opensips.var.rb
-sed -i -e 's/enable_ipv6     = true/enable_ipv6      = false/g' opensips.var.rb
+# disable tls
+if [ "$TLS" == "false" ]
+then
+  sed -i -e 's/enable_tls      = true/enable_tls      = false/g' opensips.var.rb
+fi
+
+# disable ipv6
+if [ "$IPV6" == "false" ]
+then
+  sed -i -e 's/enable_ipv6     = true/enable_ipv6      = false/g' opensips.var.rb
+fi
 
 # set our listening IP address
 sed -i -e "s/listen_ip       = 'xxx.xxx.xxx.xxx'/listen_ip      = '$IP'/g" opensips.var.rb
@@ -147,20 +167,30 @@ sed -i -e "s/listen_ip       = 'xxx.xxx.xxx.xxx'/listen_ip      = '$IP'/g" opens
 # set our modules directory
 sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensips/modules/#g' opensips.var.rb
 
+
 # build the config
 ./build.rb && cp opensips.cfg /usr/local/opensips/etc/opensips/opensips.cfg
 
+if [ "$INSTALL_KWIKYKONF" == "true" ]
+then
+  /usr/local/src/federated-sip/scripts/install_kwikykonf.sh
+fi
+
 # start opensips
 cd /usr/local/opensips && sbin/opensips
-
-# add a subscriber
-sbin/opensipsctl add "$USER@$DOMAIN" "ilikeopensips$NUM"
 
 # sleep to get nicer output, then print info
 sleep 5;
 echo ""
 echo ""
 echo ""
-echo "AOR     : $USER@$DOMAIN"
-echo "PASSWORD: ilikeopensips$NUM"
+
+# add a subscriber
+if [ -e "$USER" ]
+then
+ sbin/opensipsctl add "$USER@$DOMAIN" "ilikeopensips$NUM"
+ echo "AOR     : $USER@$DOMAIN"
+ echo "PASSWORD: ilikeopensips$NUM"
+fi
 echo "PROXY   : $IP"
+

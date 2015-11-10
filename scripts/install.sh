@@ -173,7 +173,7 @@ sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensi
 
 if [ "$INSTALL_KWIKYKONF" == "true" ]
 then
-  /usr/local/src/federated-sip/scripts/install_kwikykonf.sh
+ $DIR/scripts/install_kwikykonf.sh
 fi
 
 # start opensips

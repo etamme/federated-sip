@@ -1,5 +1,6 @@
 #!/bin/bash
 
+PREFIX="/usr/local/opensips"
 INSTALL_KWIKYKONF="true"
 IPV6="false"
 # TLS is not supported by this script
@@ -99,7 +100,8 @@ git clone https://github.com/ralight/sqlite3-pcre.git
 cd opensips
 cp Makefile.conf.template Makefile.conf
 sed -i -e 's/include_modules?=/include_modules?= db_sqlite/g' Makefile.conf 
-sed -i -e 's/PREFIX=\/usr\/local\//PREFIX=\/usr\/local\/opensips\//g' Makefile.conf
+#sed -i -e 's/PREFIX=\/usr\/local\//PREFIX=\/usr\/local\/opensips\//g' Makefile.conf
+sed -i -e "s#PREFIX=/usr/local#PREFIX=$PREFIX#g" Makefile.conf
 make all && make all install
 
 # set up our sqlite database
@@ -115,16 +117,16 @@ sqlite3 /var/db/opensips/opensips < $DIR/scripts/create_translations_table.sqlit
 sqlite3 /var/db/opensips/opensips "insert into translations (from_domain,match_regex,tran_domain, tran_strip) values ('$DOMAIN','^\+18[045678]{2}[0-9]{7}$','tf.arctele.com',1);"
 
 # set up opensipsctlrc to use our sqlite database
-sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' /usr/local/opensips/etc/opensips/opensipsctlrc
-sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/opensips\/opensips/g' /usr/local/opensips/etc/opensips/opensipsctlrc
+sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' $INSTALL_PREFIX/etc/opensips/opensipsctlrc
+sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/opensips\/opensips/g' $PREFIX/etc/opensips/opensipsctlrc
 
 # add our ip to our domain table
-/usr/local/opensips/sbin/opensipsctl domain add $IP
-/usr/local/opensips/sbin/opensipsctl domain add $IP:5060
-/usr/local/opensips/sbin/opensipsctl domain add $IP:8080
-/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN
-/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:5060
-/usr/local/opensips/sbin/opensipsctl domain add $DOMAIN:8080
+$PREFIX/sbin/opensipsctl domain add $IP
+$PREFIX/sbin/opensipsctl domain add $IP:5060
+$PREFIX/sbin/opensipsctl domain add $IP:8080
+$PREFIX/sbin/opensipsctl domain add $DOMAIN
+$PREFIX/sbin/opensipsctl domain add $DOMAIN:5060
+$PREFIX/sbin/opensipsctl domain add $DOMAIN:8080
 
 if [ "$NOAUTH" == "true" ]
 then
@@ -153,6 +155,8 @@ cp opensips.var.rb.sample opensips.var.rb
 if [ "$TLS" == "false" ]
 then
   sed -i -e 's/enable_tls      = true/enable_tls      = false/g' opensips.var.rb
+  sed -i -e '/include_modules?=/ s/$/ proto_tls/' Makefile.conf
+  mkdir -p $PREFIX/etc/opensips/tls
 fi
 
 # disable ipv6
@@ -165,11 +169,11 @@ fi
 sed -i -e "s/listen_ip       = 'xxx.xxx.xxx.xxx'/listen_ip      = '$IP'/g" opensips.var.rb
 
 # set our modules directory
-sed -i -e 's#/usr/local/lib64/opensips/modules/#/usr/local/opensips/lib64/opensips/modules/#g' opensips.var.rb
-
+sed -i -e "s#/usr/local/lib64/opensips/modules/#$PREFIX/lib64/opensips/modules/#g" opensips.var.rb
+sed -i -e "s#/usr/local/etc#$PREFIX/etc#g" Makefile.conf
 
 # build the config
-./build.rb && cp opensips.cfg /usr/local/opensips/etc/opensips/opensips.cfg
+./build.rb && cp opensips.cfg $PREFIX/etc/opensips/opensips.cfg
 
 if [ "$INSTALL_KWIKYKONF" == "true" ]
 then
@@ -177,7 +181,7 @@ then
 fi
 
 # start opensips
-cd /usr/local/opensips && sbin/opensips
+cd $PREFIX && sbin/opensips
 
 # sleep to get nicer output, then print info
 sleep 5;

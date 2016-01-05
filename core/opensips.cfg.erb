@@ -327,7 +327,7 @@ route["initial_requests"] {
   t_on_branch("rtpengine");
 
   # Detect if UAC is websockets client and set flag for later processing
-  if ( proto == WS ) {
+  if ( proto == WS || proto == WSS) {
     setflag(uac_ws);
   }
 

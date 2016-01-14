@@ -24,6 +24,10 @@ listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
 <%-if enable_ws-%>
 listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
 <%-end-%>
+<%-if enable_wss-%>
+listen=wss:<%= listen_ip %>:<%= wss_listen_port %>
+<%-end-%>
+
 <%-if enable_ipv6-%>
 <%-if enable_udp-%>
 listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
@@ -37,7 +41,6 @@ listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
 <%-if enable_ws-%>
 listen=ws:[<%= listen_ipv6 %>]:<%= ws_listen_port %>
 <%-end-%>
-
 dns_try_ipv6 = 1
 <%-end-%>
 
@@ -48,9 +51,6 @@ tcp_keepinterval = 10
 
 #set module path
 mpath="<%= module_path %>"
-
-user=<%= user %>
-group=<%= group %>
 
 <%-if enable_udp-%>
 loadmodule "proto_udp.so"
@@ -63,6 +63,12 @@ loadmodule "proto_tls.so"
 <%-end-%>
 <%-if enable_ws-%>
 loadmodule "proto_ws.so"
+<%-end-%>
+<%-if enable_wss-%>
+loadmodule "proto_wss.so"
+<%-end-%>
+<% if enable_tls  or enable_wss %> 
+loadmodule "tls_mgm.so"
 <%-end-%>
 loadmodule "signaling.so"
 loadmodule "sl.so"
@@ -156,18 +162,13 @@ modparam("stun","alternate_port","6050")
 
 # ----- rtpengine params ----
 modparam("rtpengine", "rtpengine_sock", "udp:<%= listen_ip %>:60000")
-<%-if enable_tls-%>
-# ----- tls params ----
-modparam("proto_tls", "require_cert", "0")
-modparam("proto_tls", "verify_cert", "0")
-modparam("proto_tls", "tls_method", "SSLv23")
-# server side tls only (not making outbound tls connections)
-modparam("proto_tls", "certificate",
-	 "/usr/local/etc/opensips/tls/server/server-cert.pem")
-modparam("proto_tls", "private_key",
-	 "/usr/local/etc/opensips/tls/server/server-privkey.pem")
-modparam("proto_tls", "ca_list",
-	 "/usr/local/etc/opensips/tls/server/server-calist.pem")
+
+<% if enable_tls  or enable_wss %> 
+# ----- cert managment for tls and wss ----
+modparam("tls_mgm", "certificate",
+         "/etc/letsencrypt/live/mydomain.com/cert.pem")
+modparam("tls_mgm", "private_key",
+         "/etc/letsencrypt/live/mydomain.com/privkey.pem")
 <%-end-%>
 
 # branch flags
@@ -327,7 +328,7 @@ route["initial_requests"] {
   t_on_branch("rtpengine");
 
   # Detect if UAC is websockets client and set flag for later processing
-  if ( proto == WS || proto == WSS) {
+  if ( proto == WS || proto == WSS ) {
     setflag(uac_ws);
   }
 

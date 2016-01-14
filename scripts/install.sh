@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PREFIX="/usr/local/opensips"
-INSTALL_KWIKYKONF="true"
+INSTALL_KWIKYKONF="false"
 IPV6="false"
 # TLS is not supported by this script
 TLS="false"
@@ -117,7 +117,7 @@ sqlite3 /var/db/opensips/opensips < $DIR/scripts/create_translations_table.sqlit
 sqlite3 /var/db/opensips/opensips "insert into translations (from_domain,match_regex,tran_domain, tran_strip) values ('$DOMAIN','^\+18[045678]{2}[0-9]{7}$','tf.arctele.com',1);"
 
 # set up opensipsctlrc to use our sqlite database
-sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' $INSTALL_PREFIX/etc/opensips/opensipsctlrc
+sed -i -e 's/# DBENGINE=MYSQL/DBENGINE=SQLITE/g' $PREFIX/etc/opensips/opensipsctlrc
 sed -i -e 's/# DB_PATH="\/usr\/local\/etc\/opensips\/dbtext"/DB_PATH=\/var\/db\/opensips\/opensips/g' $PREFIX/etc/opensips/opensipsctlrc
 
 # add our ip to our domain table
@@ -181,7 +181,7 @@ then
 fi
 
 # start opensips
-cd $PREFIX && sbin/opensips
+cd $PREFIX && sbin/opensips -u opensips -g opensips
 
 # sleep to get nicer output, then print info
 sleep 5;

@@ -92,4 +92,4 @@ fi
 sleep 1
 
 echo "starting opensips"
-/usr/local/opensips/sbin/opensips
+/usr/local/opensips/sbin/opensips -u opensips -g opensips

@@ -66,21 +66,21 @@
         - sqlite-devel
 
     - git: repo=https://github.com/sipwise/rtpengine.git
-       dest=/usr/local/src
+       dest=/usr/local/src/rtpengine
        version=mr4.0.1
     - git: repo=https://github.com/ralight/sqlite3-pcre.git
-       dest=/usr/local/src
+       dest=/usr/local/src/sqlite3-pcre
 
-    - name: Running "make" for rtpengine
-        command: '"{{ item }}" chdir=/usr/local/src/rtpengine/'
-        with_items:
-          - make
-    - name: Running "make install" for rtpengine
-        command: 'make install chdir=/usr/local/src/rtpengine/'
+    - name: Running make for rtpengine
+      command: "{{ item }} chdir=/usr/local/src/rtpengine/daemon"
+      with_items:
+        - make
+    - name: Running make install for rtpengine
+      command: "cp rtpengine /usr/sbin/rtpengine chdir=/usr/local/src/rtpengine/daemon"
 
-    - name: Running "make" for sqlite3-pcre
-        command: '"{{ item }}" chdir=/usr/local/src/sqlite3-pcre/'
-        with_items:
-          - make
-    - name: Running "make install" for sqlite3-pcre
-        command: 'make install chdir=/usr/local/src/sqlite3-pcre/'
+    - name: Running make for sqlite3-pcre
+      command: "{{ item }} chdir=/usr/local/src/sqlite3-pcre/"
+      with_items:
+        - make
+    - name: Running make install for sqlite3-pcre
+      command: "make install chdir=/usr/local/src/sqlite3-pcre/"

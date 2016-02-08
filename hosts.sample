@@ -1,0 +1,3 @@
+[federated-servers]
+server1 ansible_ssh_host=server1.com ansible_ssh_port=22
+server2 ansible_ssh_host=server2.com ansible_ssh_port=22

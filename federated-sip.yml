@@ -1,0 +1,27 @@
+---
+- name: Federated SIP setup
+  hosts: federated-servers
+  sudo: true
+  tasks:
+    - name: install vim
+      yum: name=vim-enhanced
+
+    - name: install epel
+      yum: name=epel-release
+
+    - name: install opensips repo
+      yum: name=http://yum.opensips.org/2.2/nightly/el/7/x86_64/opensips-yum-nightly-2.2-2.el7.noarch.rpm
+
+    - group: name=opensips state=present
+    - user: name=opensips createhome=no group=opensips
+
+    - name: "Install required opensips packages"
+      yum: state=present name={{ item }}
+      with_items:
+        - opensips
+        - opensips-db_sqlite
+        - opensips-proto_tls
+        - opensips-proto_ws
+        - opensips-proto_wss
+        - opensips-rtpengine
+        - opensips-tls_mgm

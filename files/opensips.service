@@ -6,9 +6,9 @@ After=network.target mysqld.service rtpengine.service
 Type=forking
 User=opensips
 Group=opensips
-EnvironmentFile=-/etc/sysconfig/opensips
+EnvironmentFile=/etc/sysconfig/opensips
 PIDFile=/var/run/opensips/opensips.pid
-ExecStart=/usr/sbin/opensips -P /var/run/opensips/opensips.pid -f /etc/opensips/opensips.cfg $OPTIONS
+ExecStart=/usr/sbin/opensips -u opensips -g opensips -P /var/run/opensips/opensips.pid -f /etc/opensips/opensips.cfg $OPTIONS
 
 Restart=always
 

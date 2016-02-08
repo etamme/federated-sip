@@ -1,8 +1,11 @@
 ---
 - name: Federated SIP setup
   hosts: federated-servers
+  vars_files:
+    - variables.yml
   sudo: true
   tasks:
+
     - name: install vim
       yum: name=vim-enhanced
 

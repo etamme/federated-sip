@@ -7,42 +7,42 @@ children=2
 # children=1
 
 # logging and debug settings
-debug=<%= debug_level %>
+debug={{ debug_level }}
 log_stderror=no
-log_facility=<%= log_facility %>
+log_facility={{ log_facility }}
 
 # network settings
-<%-if enable_udp-%>
-listen=udp:<%= listen_ip %>:<%= listen_port %>
-<%-end-%>
-<%-if enable_tcp-%>
-listen=tcp:<%= listen_ip %>:<%= listen_port %>
-<%-end-%>
-<%-if enable_tls-%>
-listen=tls:<%= listen_ip %>:<%= tls_listen_port %>
-<%-end-%>
-<%-if enable_ws-%>
-listen=ws:<%= listen_ip %>:<%= ws_listen_port %>
-<%-end-%>
-<%-if enable_wss-%>
-listen=wss:<%= listen_ip %>:<%= wss_listen_port %>
-<%-end-%>
+{% if enable_udp %}
+listen=udp:{{ listen_ip }}:{{ listen_port }}
+{% endif %}
+{% if enable_tcp %}
+listen=tcp:{{ listen_ip }}:{{ listen_port }}
+{% endif %}
+{% if enable_tls %}
+listen=tls:{{ listen_ip }}:{{ tls_listen_port }}
+{% endif %}
+{% if enable_ws %}
+listen=ws:{{ listen_ip }}:{{ ws_listen_port }}
+{% endif %}
+{% if enable_wss %}
+listen=wss:{{ listen_ip }}:{{ wss_listen_port }}
+{% endif %}
 
-<%-if enable_ipv6-%>
-<%-if enable_udp-%>
-listen=udp:[<%= listen_ipv6 %>]:<%= listen_port%>
-<%-end-%>
-<%-if enable_tcp-%>
-listen=tcp:[<%= listen_ipv6 %>]:<%= listen_port%>
-<%-end-%>
-<%-if enable_tls-%>
-listen=tls:[<%= listen_ipv6 %>]:<%= tls_listen_port%>
-<%-end-%>
-<%-if enable_ws-%>
-listen=ws:[<%= listen_ipv6 %>]:<%= ws_listen_port %>
-<%-end-%>
+{% if enable_ipv6 %}
+{% if enable_udp %}
+listen=udp:[{{ listen_ipv6 }}]:{{ listen_port}}
+{% endif %}
+{% if enable_tcp %}
+listen=tcp:[{{ listen_ipv6 }}]:{{ listen_port}}
+{% endif %}
+{% if enable_tls %}
+listen=tls:[{{ listen_ipv6 }}]:{{ tls_listen_port}}
+{% endif %}
+{% if enable_ws %}
+listen=ws:[{{ listen_ipv6 }}]:{{ ws_listen_port }}
+{% endif %}
 dns_try_ipv6 = 1
-<%-end-%>
+{% endif %}
 
 tcp_keepalive = 1
 tcp_keepcount = 5
@@ -50,26 +50,26 @@ tcp_keepidle = 15
 tcp_keepinterval = 10
 
 #set module path
-mpath="<%= module_path %>"
+mpath="{{ module_path }}"
 
-<%-if enable_udp-%>
+{% if enable_udp %}
 loadmodule "proto_udp.so"
-<%-end-%>
-<%-if enable_tcp-%>
+{% endif %}
+{% if enable_tcp %}
 loadmodule "proto_tcp.so"
-<%-end-%>
-<%-if enable_tls-%>
+{% endif %}
+{% if enable_tls %}
 loadmodule "proto_tls.so"
-<%-end-%>
-<%-if enable_ws-%>
+{% endif %}
+{% if enable_ws %}
 loadmodule "proto_ws.so"
-<%-end-%>
-<%-if enable_wss-%>
+{% endif %}
+{% if enable_wss %}
 loadmodule "proto_wss.so"
-<%-end-%>
-<% if enable_tls  or enable_wss %> 
+{% endif %}
+<% if enable_tls  or enable_wss }}
 loadmodule "tls_mgm.so"
-<%-end-%>
+{% endif %}
 loadmodule "signaling.so"
 loadmodule "sl.so"
 loadmodule "tm.so"
@@ -120,11 +120,11 @@ modparam("db_sqlite", "load_extension", "/usr/lib/sqlite3/pcre.so")
 
 # ---- dialog params ----
 modparam("dialog", "db_mode", 1)
-modparam("dialog", "db_url", "<%= dialog_db_url %>")
+modparam("dialog", "db_url", "{{ dialog_db_url }}")
 
 # ---- user location params ----
 modparam("usrloc", "db_mode", 1)
-modparam("usrloc", "db_url", "<%= usrloc_db_url %>")
+modparam("usrloc", "db_url", "{{ usrloc_db_url }}")
 
 # when a UAC sends nated register set a branch flag before saving.
 # when lookup is called, usrloc will restore the branch flag and let us
@@ -136,12 +136,12 @@ modparam("usrloc", "use_domain",1)
 # ---- auth params ----
 modparam("auth_db", "calculate_ha1", 0)
 modparam("auth_db", "password_column", "ha1")
-modparam("auth_db", "db_url", "<%= auth_db_url %>")
+modparam("auth_db", "db_url", "{{ auth_db_url }}")
 modparam("auth_db", "load_credentials", "")
 modparam("auth_db", "use_domain", 1)
 
 # ---- avpops params ----
-modparam("avpops", "db_url", "<%= avp_db_url %>")
+modparam("avpops", "db_url", "{{ avp_db_url }}")
 modparam("avpops","use_domain",1)
 
 # ----- pike params ----
@@ -150,26 +150,26 @@ modparam("pike", "reqs_density_per_unit", 30)
 modparam("pike", "remove_latency", 3600)
 
 # ----- domain params ----
-modparam("domain", "db_url", "<%= domain_db_url %>")
+modparam("domain", "db_url", "{{ domain_db_url }}")
 
 # ----- stun params -----
 # keeps logs free of parse errors on stun packets
-modparam("stun","primary_ip","<%= listen_ip %>")
-modparam("stun","primary_port","<%= listen_port %>")
+modparam("stun","primary_ip","{{ listen_ip }}")
+modparam("stun","primary_port","{{ listen_port }}")
 # alternate ip required, using localhost for compatibility
 modparam("stun","alternate_ip","127.0.0.1")
 modparam("stun","alternate_port","6050")
 
 # ----- rtpengine params ----
-modparam("rtpengine", "rtpengine_sock", "udp:<%= listen_ip %>:60000")
+modparam("rtpengine", "rtpengine_sock", "udp:{{ listen_ip }}:60000")
 
-<% if enable_tls  or enable_wss %> 
+<% if enable_tls  or enable_wss }}
 # ----- cert managment for tls and wss ----
 modparam("tls_mgm", "certificate",
          "/etc/letsencrypt/live/mydomain.com/cert.pem")
 modparam("tls_mgm", "private_key",
          "/etc/letsencrypt/live/mydomain.com/privkey.pem")
-<%-end-%>
+{% endif %}
 
 # branch flags
 # ------------
@@ -190,7 +190,7 @@ modparam("tls_mgm", "private_key",
 # route["sequential_requests"]   - sequential request route processing
 # branch_route["rtpengine"]      - processing for rtpengine flags per branch
 # onreply_route["reply"]         - reply processing for nat and rtpengine flags
-# 
+#
 # helper routes
 # -------------
 # route["to_e164"]               - special processing for e164
@@ -202,7 +202,7 @@ modparam("tls_mgm", "private_key",
 # main request routing logic
 route{
   # choose to enable, or disable enum lookups by setting this to 1 or 0
-  $var(use_enum)=<%= use_enum %>;
+  $var(use_enum)={{ use_enum }};
 
   # use variables in the xlog to make log output "standardized" in spacing
   $var(prefix)="route                     : "+
@@ -219,7 +219,7 @@ route{
       $ua=~"^sipcli"           )
   {
     xlog("L_INFO","$var(prefix) ban scanner $si\n");
-    exit; 
+    exit;
   }
 
   # kill any requests that we do not handle

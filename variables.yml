@@ -1,0 +1,7 @@
+---
+listen_ip: {{ ansible_default_ipv4 }}
+listen_ip6: {{ ansible_default_ipv6 }}
+listen_udp_port: 5060
+listen_tcp_port: 5060
+listen_tls_port: 5061
+listen_wss_port: 443

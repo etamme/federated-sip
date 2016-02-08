@@ -28,3 +28,39 @@
         - opensips-proto_wss
         - opensips-rtpengine
         - opensips-tls_mgm
+
+    - name: install rtpengine deps
+      yum: state=present name={{ item }}
+      with_items:
+        - git
+        - gcc
+        - make
+        - flex
+        - bison
+        - gettext
+        - automake
+        - autoconf
+        - gdb
+        - libtool
+        - binutils
+        - pkgconfig
+        - glib2
+        - glib2-devel
+        - zlib
+        - zlib-devel
+        - openssl
+        - openssl-devel
+        - pcre
+        - pcre-devel
+        - libcurl
+        - libcurl-devel
+        - xmlrpc-c
+        - xmlrpc-c-devel
+        - hiredis
+        - hiredis-devel
+
+    - name: install sqlite pcre extension deps
+      yum: state=present name={{ item }}
+      with_items:
+        - sqlite
+        - sqlite-devel

@@ -1,2 +1,2 @@
 # Add extra options here
-OPTIONS=""
+OPTIONS="-u opensips -g opensips"

@@ -1,0 +1,3 @@
+DBENGINE=SQLITE
+DB_PATH="/var/db/opensips/opensips"
+

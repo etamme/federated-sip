@@ -27,6 +27,8 @@ Installation
 - ```apt-get install ansible``` or ```yum install ansible``` on your local machine.
 - ```cp hosts.sample  hosts``` and edit to include your servers domain or ip.
 - run ```ansible-playbook -i hosts federated-sip.yml --extra-vars="firstrun=true"```
+- after ansible finishes, you will have to add your domain to the sqlite database: ```opensipsctl domain add mydomain.com```
+- finally you can add users ```opensipsctl add alice@mydomain.com passwordforalice```
 
 Ansible will automatically utilize the primary ipv4 and ipv6 address on your remote server.  For more complex installations such as TLS, or WSS edit variables.yml to enable or disable specific options, and specify things like the location of private keys.
 

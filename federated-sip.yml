@@ -65,6 +65,13 @@
         - sqlite
         - sqlite-devel
 
+    - name: Stopping rtpengine
+      service: name=rtpengine state=stopped
+      when: firstrun == 'false'
+    - name: Stopping opensips
+      service: name=opensips state=stopped
+      when: firstrun == 'false'
+
     - git: repo=https://github.com/sipwise/rtpengine.git
        dest=/usr/local/src/rtpengine
        version=mr4.0.1
@@ -91,6 +98,9 @@
 
     - name: Copying opensips environment files
       copy: src=files/opensips.sysconfig dest=/etc/sysconfig/opensips
+
+    - name: Copying opensips control config
+      copy: src=files/opensipsctlrc dest=/etc/opensips/opensipsctlrc
 
     - name: Copying opensips service script
       copy: src=files/opensips.service dest=/etc/systemd/system/opensips.service

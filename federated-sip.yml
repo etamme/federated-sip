@@ -90,15 +90,47 @@
         mode=0644
 
     - name: Copying opensips environment files
-      file: src=files/opensips.sysconfig dest=/etc/sysconfig/opensips
+      copy: src=files/opensips.sysconfig dest=/etc/sysconfig/opensips
 
     - name: Copying opensips service script
-      file: src=files/opensips.service dest=/etc/systemd/system/opensips.service
+      copy: src=files/opensips.service dest=/etc/systemd/system/opensips.service
 
     - name: Copying rtpengine environment files
       template: src=templates/rtpengine.sysconfig.j2 dest=/etc/sysconfig/rtpengine
 
     - name: Copying rtpengine service script
-      file: src=files/rtpengine.service dest=/etc/systemd/system/rtpengine.service
+      copy: src=files/rtpengine.service dest=/etc/systemd/system/rtpengine.service
 
+    - git: repo=https://github.com/OpenSIPS/opensips.git
+       dest=/usr/local/src/opensips
 
+    - file: path=/var/db/opensips state=directory mode=0755 group=opensips owner=opensips
+    - file: path=/var/db/opensips state=directory mode=0777
+
+    - name: Copying translations table sql create script
+      copy: src=files/create_translations_table.sqlite dest=/usr/local/src/create_translations_table.sqlite
+    - name: Creating opensips database
+      shell: "sqlite3 /var/db/opensips/opensips < /usr/local/src/opensips/scripts/sqlite/standard-create.sql"
+      when: firstrun == 'true'
+    - name: Creating dialog table
+      shell: "sqlite3 /var/db/opensips/opensips < /usr/local/src/opensips/scripts/sqlite/dialog-create.sql"
+      when: firstrun == 'true'
+    - name: Creating location table
+      shell: "sqlite3 /var/db/opensips/opensips < /usr/local/src/opensips/scripts/sqlite/usrloc-create.sql"
+      when: firstrun == 'true'
+    - name: Creating domain table
+      shell: "sqlite3 /var/db/opensips/opensips < /usr/local/src/opensips/scripts/sqlite/domain-create.sql"
+      when: firstrun == 'true'
+    - name: Creating subscriber table
+      shell: "sqlite3 /var/db/opensips/opensips < /usr/local/src/opensips/scripts/sqlite/auth_db-create.sql"
+      when: firstrun == 'true'
+    - name: Creating translations table
+      shell: "sqlite3 /var/db/opensips/opensips < /usr/local/src/create_translations_table.sqlite"
+      when: firstrun == 'true'
+
+    - file: path=/var/db/opensips/opensips state=file mode=0777 group=opensips owner=opensips
+
+    - name: Starting rtpengine
+      service: name=rtpengine state=started
+    - name: Starting opensips
+      service: name=opensips state=started

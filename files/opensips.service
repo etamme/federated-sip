@@ -8,7 +8,11 @@ User=opensips
 Group=opensips
 EnvironmentFile=/etc/sysconfig/opensips
 PIDFile=/var/run/opensips/opensips.pid
-ExecStart=/usr/sbin/opensips -u opensips -g opensips -P /var/run/opensips/opensips.pid -f /etc/opensips/opensips.cfg $OPTIONS
+# Run ExecStartPre with root-permissions
+PermissionsStartOnly=true
+ExecStartPre=-/bin/mkdir /var/run/opensips
+ExecStartPre=/bin/chown -R opensips:opensips /var/run/opensips/
+ExecStart=/sbin/opensips -P /var/run/opensips/opensips.pid -f /etc/opensips/opensips.cfg $OPTIONS
 
 Restart=always
 

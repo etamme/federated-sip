@@ -1,6 +1,6 @@
 ---
-listen_ip: "{{ ansible_default_ipv4 }}"
-listen_ip6: "{{ ansible_default_ipv6 }}"
+listen_ip: "{{ ansible_default_ipv4.address }}"
+listen_ip6: "{{ ansible_default_ipv6.address }}"
 listen_udp_port: 5060
 listen_tcp_port: 5060
 listen_tls_port: 5061
@@ -16,6 +16,7 @@ module_path: /usr/lib64/opensips/modules/
 log_facility: LOG_LOCAL2
 db_url: sqlite://var/db/opensips/opensips
 use_enum: false
+debug_level: 3
 # We set db_url then reference it for all other db_urls
 # since they share a common db.  You can set them individually.
 group_db_url: "{{ db_url }}"

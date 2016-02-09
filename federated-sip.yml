@@ -84,3 +84,21 @@
         - make
     - name: Running make install for sqlite3-pcre
       command: "make install chdir=/usr/local/src/sqlite3-pcre/"
+
+    - name: Copying opensips configuration
+      template: src=templates/opensips.cfg.j2 dest=/etc/opensips/opensips.cfg
+        mode=0644
+
+    - name: Copying opensips environment files
+      file: src=files/opensips.sysconfig dest=/etc/sysconfig/opensips
+
+    - name: Copying opensips service script
+      file: src=files/opensips.service dest=/etc/systemd/system/opensips.service
+
+    - name: Copying rtpengine environment files
+      template: src=templates/rtpengine.sysconfig.j2 dest=/etc/sysconfig/rtpengine
+
+    - name: Copying rtpengine service script
+      file: src=files/rtpengine.service dest=/etc/systemd/system/rtpengine.service
+
+

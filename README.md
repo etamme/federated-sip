@@ -1,4 +1,4 @@
-IP server
+SIP server
 ====================
 
 The Federated SIP project is a set of scripts designed to run OpenSIPS + rtpengine in a way that will provide federated, open communication with any other SIP server on the internet.

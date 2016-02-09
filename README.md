@@ -24,6 +24,8 @@ Together with Federate-SIP they make a fast and light WebRTC video chat.
 Installation
 ----------------------
 
+Federated-SIP has been updated to use ansible.  Ansible allows you to manage remote hosts without needing to install any client software on the remote servers.
+
 - ```apt-get install ansible``` or ```yum install ansible``` on your local machine.
 - ```cp hosts.sample  hosts``` and edit to include your servers domain or ip.
 - run ```ansible-playbook -i hosts federated-sip.yml --extra-vars="firstrun=true"```

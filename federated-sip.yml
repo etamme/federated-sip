@@ -13,7 +13,7 @@
       yum: name=epel-release
 
     - name: install opensips repo
-      yum: name=http://yum.opensips.org/2.2/nightly/el/7/x86_64/opensips-yum-nightly-2.2-2.el7.noarch.rpm
+      yum: name=http://yum.opensips.org/2.2/nightly/el/7/x86_64/opensips-yum-nightly-2.2-3.el7.noarch.rpm
 
     - group: name=opensips state=present
     - user: name=opensips createhome=no group=opensips

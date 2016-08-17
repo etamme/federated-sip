@@ -686,7 +686,7 @@ route["enum_query"] {
 }
 
 route["outbound_translations"] {
-
+  $rd="a.bjn.vc;transport=tcp";
   $var(log_query)=0;
   if($var(log_query)){
     xlog("L_INFO","$var(prefix) select tran_strip, tran_prefix, tran_user, "

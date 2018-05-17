@@ -13,7 +13,7 @@
       yum: name=epel-release
 
     - name: install opensips repo
-      yum: name=http://yum.opensips.org/2.2/nightly/el/7/x86_64/opensips-yum-nightly-2.2-3.el7.noarch.rpm
+      yum: name=http://yum.opensips.org/2.4/releases/el/7/x86_64/opensips-yum-releases-2.4-3.el7.noarch.rpm
 
     - group: name=opensips state=present
     - user: name=opensips createhome=no group=opensips
@@ -58,6 +58,10 @@
         - xmlrpc-c-devel
         - hiredis
         - hiredis-devel
+        - libpcap-devel
+        - libevent-devel
+        - json-glib-devel
+        - iptables-devel
 
     - name: install sqlite pcre extension deps
       yum: state=present name={{ item }}
@@ -74,14 +78,17 @@
 
     - git: repo=https://github.com/sipwise/rtpengine.git
        dest=/usr/local/src/rtpengine
-       version=mr4.0.1
+       version=mr6.2.1
     - git: repo=https://github.com/ralight/sqlite3-pcre.git
        dest=/usr/local/src/sqlite3-pcre
 
     - name: Running make for rtpengine
       command: "{{ item }} chdir=/usr/local/src/rtpengine/daemon"
+      environment:
+        with_transcoding: no
       with_items:
         - make
+
     - name: Running make install for rtpengine
       command: "cp rtpengine /usr/sbin/rtpengine chdir=/usr/local/src/rtpengine/daemon"
 

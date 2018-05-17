@@ -211,7 +211,7 @@ route{
   # some scanner mitigation
 
   # check to see if the src ip is flooding us and drop requests accordingly
-  if ( src_ip != myself && !pike_check_req() ) { exit; }
+  if ( !is_myself("$si") && !pike_check_req() ) { exit; }
   # check packet for signs that it came from a scanner
   if( $ua=~"^sipvicious"       ||
       $ua=~"^freindly-scanner" ||
@@ -231,7 +231,7 @@ route{
   }
 
   # we do not handle any subscriptions locally
-  if (is_method("SUBSCRIBE") && uri == myself) {
+  if (is_method("SUBSCRIBE") && is_myself("$rd") ) {
     sl_send_reply("405","Method Not Allowed");
     exit;
   }
@@ -260,7 +260,7 @@ route{
   #  We are also checking to see if a Record-Route header is present.
   #  We only want to do contact rewriting for user agents that are "local"
   #  to us, aka immediately adjacent not using other proxy servers.
-  if ( af == INET && !is_present_hf("Record-Route") && nat_uac_test("35")) {
+  if ( $af == "INET" && !is_present_hf("Record-Route") && nat_uac_test("35")) {
     xlog("L_INFO","$var(prefix) request from uac behind nat\n");
     # append recieved and port to first via so we can route responses back
     force_rport();
@@ -307,7 +307,7 @@ route["initial_requests"] {
 		$(cs{s.width, 6})+": "+$(rm{s.width, 9})+":";
 
   # quickly handle OPTIONS pings
-  if (is_method("OPTIONS") && uri == myself) {
+  if (is_method("OPTIONS") && is_myself("$rd")) {
     sl_send_reply("200","NAT Ping");
     exit;
   }
@@ -335,7 +335,7 @@ route["initial_requests"] {
   t_on_branch("rtpengine");
 
   # Detect if UAC is websockets client and set flag for later processing
-  if ( proto == WS || proto == WSS ) {
+  if ( $proto == "ws" || $proto == "wss" ) {
     setflag(uac_ws);
   }
 
@@ -383,7 +383,7 @@ route["initial_requests"] {
     }
 
     # save the ip version info in a bflag to be restored on lookup()
-    if ( af == INET ) {
+    if ( $af == "INET" ) {
       setbflag(uas_ip4);
     } else {
       setbflag(uas_ip6);
@@ -415,7 +415,7 @@ route["initial_requests"] {
     create_dialog();
     setflag(dialog_created);
     # check if UAC is ipv6
-    if(  af == INET6 ) {
+    if(  $af == "INET6" ) {
       $dlg_val(uac_ipv) = "IP6";
     } else {
       $dlg_val(uac_ipv) = "IP4";
@@ -424,7 +424,7 @@ route["initial_requests"] {
   xlog("L_INFO","$var(prefix) fU=$fU fd=$fd rU=$rU\n");
 
   # Initial request processing for: INVITE, MESSAGE, NOTIFY
-  if (method=="INVITE" || method=="MESSAGE" || method=="NOTIFY") {
+  if ($rm=="INVITE" || $rm=="MESSAGE" || $rm=="NOTIFY") {
 
     #  translations are standardized on e164 so we check if the request matches
     #  an e164 pattern and apply any missing prefixes
@@ -503,7 +503,7 @@ route["sequential_requests"] {
         xlog("L_INFO","$var(prefix) received ACK to negative response - "
                       "relaying\n");
       }
-    } else if ( uri != myself ) {
+    } else if ( !is_myself("$rd") ) {
       # some other sequential request that is bogus
       xlog("L_INFO","$var(prefix) received bogus sequential request - "
                     "sending 404\n");
@@ -594,7 +594,7 @@ onreply_route["reply"] {
 
     # save UAS ipv info for rtpengine flags
     if ( !isbflagset(uas_ip4) && !isbflagset(uas_ip6) ) {
-      if( af == INET6 ) {
+      if( $af == "INET6" ) {
         $avp(uas_ipv)="IP6";
       } else {
         $avp(uas_ipv)="IP4";
@@ -708,7 +708,8 @@ route["outbound_translations"] {
     } else {
       # if a translation strip exists, apply it before prefixing
       if($avp(tran_strip)!='<null>') {
-        $rU = $(rU{s.substr, $(avp(tran_strip){s.int}), 0});
+        $var(int_strip)=$(avp(tran_strip){s.int});
+        $rU = $(rU{s.substr, $var(int_strip), 0});
       }
       # apply any translation prefix that exists
       if($avp(tran_prefix)!='<null>') {

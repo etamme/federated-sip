@@ -32,6 +32,9 @@ Federated-SIP has been updated to use ansible.  Ansible allows you to manage rem
 - run ```ansible-playbook -i hosts federated-sip.yml --extra-vars="firstrun=true"```
 - after ansible finishes, you can tell opensips about other domains this proxy hosts by running: ```opensipsctl domain add mydomain.com```
 - finally you can add users that will be able to register to opensips ```opensipsctl add alice@mydomain.com passwordforalice```
+- subsequent runs of ansible should be made with the firstrun variable set to false
+- run ```ansible-playbook -i hosts federated-sip.yml --extra-vars="firstrun=false"```
+
 
 Ansible will automatically utilize the primary ipv4 and ipv6 address on your remote server.  For more complex installations such as TLS, or WSS edit variables.yml to enable or disable specific options, and specify things like the location of private keys.
 

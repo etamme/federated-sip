@@ -49,6 +49,8 @@ tcp_keepcount = 5
 tcp_keepidle = 15
 tcp_keepinterval = 10
 
+alias={{ domain }}
+
 #set module path
 mpath="{{ module_path }}"
 
@@ -317,7 +319,7 @@ route["initial_requests"] {
     xlog("L_INFO","$var(prefix) received initial request to $ru from $fu\n");
   }
   # preloaded route checking
-  if (loose_route() && !is_method("ACK|CANCEL")) {
+  if (loose_route() && !is_myself("$du") && !is_method("ACK|CANCEL")) {
     xlog("L_INFO","$var(prefix) initial request with preloaded routes "
 		  "[$fu/$tu/$ru/$ci] - rejecting\n");
     sl_send_reply("403","Preload Route denied");
@@ -348,11 +350,7 @@ route["initial_requests"] {
     if (is_from_local("$var(attrs)")) {
        if($var(attrs)=="noauth")
          $var(unauthenticated)=1;
-    } else {
-       xlog("L_INFO","$var(prefix) attempt to register non local domain\n");
-      sl_send_reply("603","Decline - unknown domain");
-      exit;
-    }
+    } 
 
     # do not challenge domains that are "unauthenticated"
     if($var(unauthenticated)==0){

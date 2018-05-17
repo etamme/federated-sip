@@ -1,3 +1,4 @@
 opensips.var.rb
 opensips.cfg
 hosts
+variables.yml

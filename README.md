@@ -28,6 +28,7 @@ Federated-SIP has been updated to use ansible.  Ansible allows you to manage rem
 
 - ```apt-get install ansible``` or ```yum install ansible``` on your local machine.
 - ```cp hosts.sample  hosts``` and edit to include your servers domain or ip.
+- ```cp variables.yml.sample  variables.yml``` and edit to include your servers domain.
 - run ```ansible-playbook -i hosts federated-sip.yml --extra-vars="firstrun=true"```
 - after ansible finishes, you will have to tell opensips about your domain: ```opensipsctl domain add mydomain.com```
 - finally you can add users that will be able to register to opensips ```opensipsctl add alice@mydomain.com passwordforalice```

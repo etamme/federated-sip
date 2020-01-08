@@ -8,18 +8,22 @@
 
     - name: install vim
       yum: name=vim-enhanced
+      when: ansible_facts['os_family'] == "RedHat"
 
     - name: install epel
       yum: name=epel-release
+      when: ansible_facts['os_family'] == "RedHat"
 
     - name: install opensips repo
       yum: name=http://yum.opensips.org/2.4/releases/el/7/x86_64/opensips-yum-releases-2.4-3.el7.noarch.rpm
+      when: ansible_facts['os_family'] == "RedHat" and compile_opensips == 'false'
 
     - group: name=opensips state=present
     - user: name=opensips createhome=no group=opensips
 
     - name: "Install required opensips packages"
       yum: state=present name={{ item }}
+      when: ansible_facts['os_family'] == "RedHat" and compile_opensips == 'false'
       with_items:
         - opensips
         - opensips-db_sqlite
@@ -31,6 +35,7 @@
 
     - name: install rtpengine deps
       yum: state=present name={{ item }}
+      when: ansible_facts['os_family'] == "RedHat"
       with_items:
         - git
         - gcc
@@ -65,6 +70,7 @@
 
     - name: install sqlite pcre extension deps
       yum: state=present name={{ item }}
+      when: ansible_facts['os_family'] == "RedHat"
       with_items:
         - sqlite
         - sqlite-devel
@@ -72,6 +78,7 @@
     - name: Stopping rtpengine
       service: name=rtpengine state=stopped
       when: firstrun == 'false'
+      
     - name: Stopping opensips
       service: name=opensips state=stopped
       when: firstrun == 'false'
@@ -81,6 +88,9 @@
        version=mr6.2.1
     - git: repo=https://github.com/ralight/sqlite3-pcre.git
        dest=/usr/local/src/sqlite3-pcre
+    - git: repo=https://github.com/OpenSIPS/opensips.git
+       dest=/usr/local/src/opensips
+       version=2.4.6 #v3.0.0 fails unless depreciated uri module is removed from config
 
     - name: Running make for rtpengine
       command: "{{ item }} chdir=/usr/local/src/rtpengine/daemon"
@@ -98,6 +108,23 @@
         - make
     - name: Running make install for sqlite3-pcre
       command: "make install chdir=/usr/local/src/sqlite3-pcre/"
+
+    - name: Running make for opensip modules
+      command: "{{ item }} chdir=/usr/local/src/opensips"
+      when: compile_opensips == 'true'   
+      environment:
+        TLS: 1
+        include_modules: "db_sqlite uri_radius rtpengine proto_tls tls_mgm signaling sl tm uri"
+      with_items:
+        - make modules
+    
+    - name: Debian doesn't use /etc/sysconfig folder, symlink to /etc/default
+      when: ansible_facts['os_family'] == "Debian"
+      command: "ln -s /etc/default /etc/sysconfig"
+    
+    - name: Running make install for opensips
+      command: "make install chdir=/usr/local/src/opensips/"
+      when: compile_opensips == 'true'
 
     - name: Copying opensips configuration
       template: src=templates/opensips.cfg.j2 dest=/etc/opensips/opensips.cfg

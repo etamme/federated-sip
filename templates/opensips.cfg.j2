@@ -163,7 +163,7 @@ modparam("stun","alternate_ip","127.0.0.1")
 modparam("stun","alternate_port","6050")
 
 # ----- rtpengine params ----
-modparam("rtpengine", "rtpengine_sock", "udp:{{ listen_ip }}:60000")
+modparam("rtpengine", "rtpengine_sock", "udp:127.0.0.1:60000")
 
 {% if enable_tls  or enable_wss %}
 # ----- cert managment for tls and wss ----

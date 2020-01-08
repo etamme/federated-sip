@@ -8,18 +8,22 @@
 
     - name: install vim
       yum: name=vim-enhanced
+      when: ansible_facts['os_family'] == "RedHat"
 
     - name: install epel
       yum: name=epel-release
+      when: ansible_facts['os_family'] == "RedHat"
 
     - name: install opensips repo
       yum: name=http://yum.opensips.org/2.4/releases/el/7/x86_64/opensips-yum-releases-2.4-3.el7.noarch.rpm
+      when: ansible_facts['os_family'] == "RedHat"
 
     - group: name=opensips state=present
     - user: name=opensips createhome=no group=opensips
 
     - name: "Install required opensips packages"
       yum: state=present name={{ item }}
+      when: ansible_facts['os_family'] == "RedHat"
       with_items:
         - opensips
         - opensips-db_sqlite
@@ -31,6 +35,7 @@
 
     - name: install rtpengine deps
       yum: state=present name={{ item }}
+      when: ansible_facts['os_family'] == "RedHat"
       with_items:
         - git
         - gcc
@@ -65,6 +70,7 @@
 
     - name: install sqlite pcre extension deps
       yum: state=present name={{ item }}
+      when: ansible_facts['os_family'] == "RedHat"
       with_items:
         - sqlite
         - sqlite-devel
@@ -72,6 +78,7 @@
     - name: Stopping rtpengine
       service: name=rtpengine state=stopped
       when: firstrun == 'false'
+      
     - name: Stopping opensips
       service: name=opensips state=stopped
       when: firstrun == 'false'

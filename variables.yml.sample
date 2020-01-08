@@ -17,6 +17,7 @@ log_facility: LOG_LOCAL2
 db_url: sqlite://var/db/opensips/opensips
 use_enum: 0
 debug_level: 3
+compile_opensips == 'false'
 # We set db_url then reference it for all other db_urls
 # since they share a common db.  You can set them individually.
 group_db_url: "{{ db_url }}"

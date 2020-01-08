@@ -111,14 +111,17 @@
 
     - name: Running make for opensip modules
       command: "{{ item }} chdir=/usr/local/src/opensips"
-      when: compile_opensips == 'true'
-      
+      when: compile_opensips == 'true'   
       environment:
         TLS: 1
         include_modules: "db_sqlite uri_radius rtpengine proto_tls tls_mgm signaling sl tm uri"
       with_items:
         - make modules
-        
+    
+    - name: Debian doesn't use /etc/sysconfig folder, symlink to /etc/default
+      when: ansible_facts['os_family'] == "Debian"
+      command: "ln -s /etc/default /etc/sysconfig"
+    
     - name: Running make install for opensips
       command: "make install chdir=/usr/local/src/opensips/"
       when: compile_opensips == 'true'

@@ -3,6 +3,13 @@
 # Overview
 The Federated SIP project is a set of scripts designed to run OpenSIPS + rtpengine in a way that will provide federated, open communication with any other SIP server on the internet.
 
+```mermaid
+flowchart LR
+    bob[bob@biloxi.com] -->|INVITE alice@acme.com|biloxi((biloxi.com))
+    biloxi((biloxi.com))-->|RFC 3263 location
+                            INVITE alice@acme.com|acme((acme.com))
+    acme((acme.com))-->|INVITE alice@acme.com|alice[alice@acme.com]
+```
 # Features
 ----------------------
 

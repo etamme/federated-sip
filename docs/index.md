@@ -3,6 +3,8 @@
 # Overview
 The Federated SIP project is a set of scripts designed to run OpenSIPS + rtpengine in a way that will provide federated, open communication with any other SIP server on the internet.
 
+Complete documentation at [federated-sip.readthedocs.io](https://federated-sip.readthedocs.io/en/latest/)
+
 ```mermaid
 flowchart LR
     bob[bob@biloxi.com] -->|INVITE alice@acme.com|biloxi((biloxi.com))

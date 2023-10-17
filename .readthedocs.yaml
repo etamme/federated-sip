@@ -23,3 +23,6 @@ mkdocs:
 
   configuration: mkdocs.yml
 
+python:
+  install:
+    - requirements: docs/requirements.txt
